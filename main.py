@@ -30,7 +30,7 @@ app = Client(
 # --- COMMAND HANDLERS ---
 
 # Start Command Handler
-@app.on_message(filters.command("start") & filters.private)
+@app.on_message(filters.command("start")) 
 async def start_handler(client: Client, message: Message):
     if message.from_user.id in Config.ADMINS:
         text = "👋 नमस्ते, **एडमिन**!\n\nफ़ाइलों को इंडेक्स करने के लिए `/index` कमांड का उपयोग करें। फ़िलहाल मैं सिर्फ़ `/start` का जवाब दे रहा हूँ।"
