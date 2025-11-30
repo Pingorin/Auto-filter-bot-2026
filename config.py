@@ -1,15 +1,23 @@
-# Step 1 से प्राप्त की गई जानकारी यहां भरें
+import os
+from dotenv import load_dotenv
+
+# .env फ़ाइल से लोकल वेरिएबल्स लोड करें
+load_dotenv() 
+
 class Config:
-    # 1. Telegram API Details
-    API_ID = int("20638104")
-    API_HASH = "6c884690ca85d39a4c5ad7c15b194e42"
+    # Telegram API Details (Heroku Config Vars या .env से)
+    API_ID = int(os.environ.get("20638104"))
+    API_HASH = os.environ.get("6c884690ca85d39a4c5ad7c15b194e42")
     
-    # 2. Bot Token
-    BOT_TOKEN = "8504476517:AAHfyOVpPuWyWtgh-mY4Uh6zIoSK7J1CbkI"
+    # Bot Token
+    BOT_TOKEN = os.environ.get("8504476517:AAHfyOVpPuWyWtgh-mY4Uh6zIoSK7J1CbkI")
     
-    # 3. Admin User IDs (आपकी ID - इसे /get_id बॉट से प्राप्त कर सकते हैं)
-    ADMINS = [int("7245547751")]
+    # MongoDB URI - Auto Filter के लिए ज़रूरी
+    DATABASE_URI = os.environ.get("DATABASE_URI")
     
-    # 4. Filter Channel IDs (फ़िलहाल खाली छोड़ दें)
-    # बाद में, जिन चैनल्स को बॉट इंडेक्स करेगा, उनकी ID यहाँ भरेंगे
-    CHANNELS = [] 
+    # Admin User IDs (आपकी ID - अगर एक से ज़्यादा हैं, तो उन्हें स्पेस से अलग करें)
+    # हम स्ट्रिंग को लिस्ट में बदल रहे हैं
+    ADMINS = [int(x) for x in os.environ.get("ADMINS", "7245547751").split()] 
+    
+    # Channel IDs (फ़िल्टर करने के लिए)
+    CHANNELS = [int(x) for x in os.environ.get("CHANNELS", "").split()]
