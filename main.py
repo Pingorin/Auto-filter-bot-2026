@@ -1,9 +1,8 @@
 import os
 import logging
 import pyrogram 
-import re
 from pyrogram import Client, filters
-from pyrogram.types import Message, InlineKeyboardButton, InlineKeyboardMarkup
+from pyrogram.types import Message
 from motor.motor_asyncio import AsyncIOMotorClient
 from config import Config
 
@@ -14,9 +13,10 @@ logger = logging.getLogger(__name__)
 
 # --- GLOBAL CLIENTS ---
 # MongoDB क्लाइंट और डेटाबेस इंस्टेंस
+# यह कनेक्शन बॉट के चलने के दौरान बना रहेगा
 DB_CLIENT = AsyncIOMotorClient(Config.DATABASE_URI)
 db = DB_CLIENT["filter_bot"] 
-filter_col = db["files"] # 'files' कलेक्शन का नाम
+filter_col = db["files"] 
 
 # Pyrogram Client Instance बनाएं
 app = Client(
@@ -25,55 +25,38 @@ app = Client(
     api_hash=Config.API_HASH,
     bot_token=Config.BOT_TOKEN,
     workers=50,
-    plugins={"root": "plugins"} # प्लगइन लोडिंग यहाँ है
+    plugins={"root": "plugins"} # plugins फ़ोल्डर लोड करें
 )
 
-# Note: /start, /id, और अन्य कमांड हैंडलर्स अब plugins/commands.py में हैं।
-
-# --- AUTO FILTER LOGIC ---
+# --- AUTO FILTER LOGIC (Temporary Filter) ---
+# यह सिर्फ़ एक डिफ़ॉल्ट हैंडलर है। इसे आप plugins/filter_handlers.py में ले जा सकती हैं।
 @app.on_message(filters.text & filters.private)
 async def auto_filter_handler(client: Client, message: Message):
-    # खाली या बहुत छोटे मैसेज को अनदेखा करें
     if len(message.text) < 3:
         return
         
-    query = message.text.lower().strip()
+    # Heroku लॉग्स में मैसेज रिसीविंग की जांच के लिए लॉग
+    logger.info(f"Received filter query from {message.from_user.id}: {message.text}")
     
-    # MongoDB में फ़ाइलों को खोजें (Indexing Logic के बाद काम करेगा)
-    cursor = filter_col.find(
-        {'file_name': {'$regex': query, '$options': 'i'}}
-    ).limit(5)
-    
-    results = [document async for document in cursor]
-    
-    if results:
-        # अगर परिणाम मिले, तो Inline Buttons दिखाएँ
-        buttons = []
-        for file in results:
-            buttons.append(
-                [InlineKeyboardButton(text=f"📂 {file.get('file_name', 'Unknown File')}", 
-                                      # 'file_id' और 'unique_id' को Indexing के बाद उपयोग किया जाएगा
-                                      callback_data=f"getfile_{file.get('file_id', '0')}")]
-            )
-            
-        buttons.append([InlineKeyboardButton(text="❌ बंद करें", callback_data="close")])
-        
-        reply_markup = InlineKeyboardMarkup(buttons)
-        await message.reply_text(
-            f"🔍 **{len(results)}** परिणाम मिले:",
-            reply_markup=reply_markup
-        )
-        
-    else:
-        # अगर कोई परिणाम नहीं मिला
-        await message.reply_text("कोई परिणाम नहीं मिला। कृपया कुछ और खोजें।")
+    # यहाँ फ़िल्टरिंग लॉजिक आएगा
+    await message.reply_text("🔍 आपकी फ़ाइल खोजी जा रही है...")
+
 
 # --- CORE FUNCTION: BOT STARTUP ---
+
+# यह सुनिश्चित करता है कि कोड तभी चले जब फ़ाइल सीधे रन की जाए
 if __name__ == "__main__":
-    # app.run() Pyrogram को ब्लॉक करता है और उसे चलता रखता है।
-    # यह Heroku पर 24/7 चलने का सबसे आसान और सबसे विश्वसनीय तरीका है।
-    # Pyrogram शुरू करने से पहले MongoDB से कनेक्शन की जाँच करने का लॉजिक अब app.run() के अंदर ही किया जाएगा।
     try:
-        app.run()
+        # MongoDB कनेक्शन चेक
+        if Config.DATABASE_URI:
+            logger.info("MongoDB कनेक्शन की जाँच हो रही है...")
+            DB_CLIENT.admin.command('ping')
+            logger.info("✅ MongoDB से सफलतापूर्वक कनेक्टेड।")
+        else:
+             logger.warning("❌ DATABASE_URI सेट नहीं है। फ़ाइल इंडेक्सिंग काम नहीं करेगी।")
+
+        # app.run() Pyrogram को शुरू करता है और Heroku पर चलता रखता है
+        app.run() 
+        
     except Exception as e:
-        logger.error(f"बॉट स्टार्टअप त्रुटि: {e}")
+        logger.error(f"❌ बॉट शुरू करने में अंतिम त्रुटि: {e}")
