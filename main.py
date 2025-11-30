@@ -37,5 +37,6 @@ async def auto_filter_handler(client: Client, message: Message):
 # ... (main() function का कोड समान)
 
 if __name__ == "__main__":
-    import asyncio
-    asyncio.run(main())
+    # app.run() Pyrogram को ब्लॉक करता है और उसे चलता रखता है
+    # यह Heroku पर 24/7 चलने का सबसे आसान तरीका है
+    app.run()
