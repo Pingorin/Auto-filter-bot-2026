@@ -7,7 +7,7 @@ logger = logging.getLogger(__name__)
 
 # Start Command Handler
 # हम यहां Client.on_message का उपयोग करते हैं, क्योंकि यह एक प्लगइन है
-@Client.on_message(filters.command("start") & filters.private)
+@Client.on_message(filters.regex("^/start") & filters.private)
 async def start_handler(client: Client, message: Message):
     
     # Heroku लॉग्स में मैसेज रिसीविंग की जांच के लिए लॉग
