@@ -1,5 +1,6 @@
 import os
 import logging
+import pyrogram
 from pyrogram import Client, filters
 from pyrogram.types import Message
 from config import Config
