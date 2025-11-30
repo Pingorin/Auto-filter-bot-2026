@@ -5,19 +5,31 @@ from dotenv import load_dotenv
 load_dotenv() 
 
 class Config:
-    # Telegram API Details (Heroku Config Vars या .env से)
-    API_ID = int(os.environ.get("20638104"))
-    API_HASH = os.environ.get("6c884690ca85d39a4c5ad7c15b194e42")
+    # 1. Telegram API Details 
+    # हम सुनिश्चित कर रहे हैं कि वेरिएबल मौजूद हो (या डिफ़ॉल्ट रूप से None हो)
+    API_ID_STR = os.environ.get("API_ID")
+    API_HASH = os.environ.get("API_HASH")
     
-    # Bot Token
-    BOT_TOKEN = os.environ.get("8504476517:AAHfyOVpPuWyWtgh-mY4Uh6zIoSK7J1CbkI")
+    # Check if API_ID_STR exists before converting to int
+    if API_ID_STR and API_ID_STR.isdigit():
+        API_ID = int(API_ID_STR)
+    else:
+        # अगर API_ID सेट नहीं है या नंबर नहीं है, तो बॉट शुरू नहीं होगा।
+        # हम इसे 0 सेट कर रहे हैं ताकि कोड चले, लेकिन बॉट क्रैश हो जाएगा।
+        print("❌ WARNING: API_ID is missing or invalid in Config Vars.")
+        API_ID = 0 
+        
+    # 2. Bot Token
+    BOT_TOKEN = os.environ.get("BOT_TOKEN")
     
-    # MongoDB URI - Auto Filter के लिए ज़रूरी
-    DATABASE_URI = os.environ.get("mongodb+srv://anu77:anu77@cluster0.8ohtzju.mongodb.net/")
+    # 3. MongoDB URI - Auto Filter के लिए ज़रूरी
+    DATABASE_URI = os.environ.get("DATABASE_URI")
     
-    # Admin User IDs (आपकी ID - अगर एक से ज़्यादा हैं, तो उन्हें स्पेस से अलग करें)
-    # हम स्ट्रिंग को लिस्ट में बदल रहे हैं
-    ADMINS = [int(x) for x in os.environ.get("ADMINS", "7245547751").split()] 
+    # 4. Admin User IDs (सुरक्षित रूप से लिस्ट लोड करें)
+    # यह सुनिश्चित करता है कि अगर खाली हो तो भी क्रैश न हो।
+    ADMINS_STR = os.environ.get("ADMINS", "")
+    ADMINS = [int(x.strip()) for x in ADMINS_STR.split() if x.strip().isdigit()]
     
-    # Channel IDs (फ़िल्टर करने के लिए)
-    CHANNELS = [int(x) for x in os.environ.get("CHANNELS", "").split()]
+    # 5. Channel IDs (सुरक्षित रूप से लिस्ट लोड करें)
+    CHANNELS_STR = os.environ.get("CHANNELS", "")
+    CHANNELS = [int(x.strip()) for x in CHANNELS_STR.split() if x.strip().isdigit()]
