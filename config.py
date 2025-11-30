@@ -13,7 +13,7 @@ class Config:
     BOT_TOKEN = os.environ.get("8504476517:AAHfyOVpPuWyWtgh-mY4Uh6zIoSK7J1CbkI")
     
     # MongoDB URI - Auto Filter के लिए ज़रूरी
-    DATABASE_URI = os.environ.get("DATABASE_URI")
+    DATABASE_URI = os.environ.get("mongodb+srv://anu77:anu77@cluster0.8ohtzju.mongodb.net/")
     
     # Admin User IDs (आपकी ID - अगर एक से ज़्यादा हैं, तो उन्हें स्पेस से अलग करें)
     # हम स्ट्रिंग को लिस्ट में बदल रहे हैं
