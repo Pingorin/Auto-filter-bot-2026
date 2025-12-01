@@ -1,5 +1,6 @@
-python-telegram-bot
-pymongo  # MongoDB के साथ काम करने के लिए
-# यदि आप Webhook का उपयोग कर रहे हैं, तो Flask/FastAPI/Gunicorn भी शामिल करें
-# gunicorn  
-# flask 
+# requirements.txt
+pyrogram
+motor
+umongo
+python-dotenv 
+uvloop
