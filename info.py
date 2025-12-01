@@ -1,17 +1,25 @@
-# Bot information and configuration variables
-# These are the default values, which can be overridden by Environment Variables.
+import os
+from dotenv import load_dotenv
 
-# --- Bot Information ---
-BOT_VERSION = "3.1.0"
-OWNER_ID = 123456789  # Replace with your Telegram User ID
-BOT_NAME = "MyPythonBot"
+# .env file se variables load karein (optional, lekin achha practice)
+load_dotenv() 
 
-# --- Strings/Messages ---
-START_MESSAGE_HTML = (
-    "<b>नमस्ते {}!</b>\n\n"
-    "मैं एक Python-आधारित Telegram Bot हूँ।\n"
-    "मुझे Heroku पर डिप्लॉय किया गया है और मैं डेटा के लिए MongoDB का उपयोग करता हूँ।"
-)
+class Config:
+    # Telegram API Credentials
+    # Inhe Telegram my.telegram.org se praapt karein
+    API_ID = int(os.environ.get("API_ID", 123456)) 
+    API_HASH = os.environ.get("API_HASH", "YOUR_API_HASH")
 
-# --- Other Configurations ---
-MAX_FILE_SIZE_MB = 50
+    # Bot Token (@BotFather se)
+    BOT_TOKEN = os.environ.get("BOT_TOKEN", "YOUR_BOT_TOKEN") 
+    
+    # MongoDB Atlas Connection String
+    # Format: mongodb+srv://username:password@clustername.mongodb.net/
+    DATABASE_URI = os.environ.get("DATABASE_URI", "YOUR_MONGODB_URI")
+    
+    # Admins List (Apna User ID)
+    # Aap ek se zyada IDs bhi rakh sakte hain
+    ADMINS = [int(id) for id in os.environ.get("ADMINS", "123456789").split()] 
+    
+    # Bot ke liye database ka naam
+    DATABASE_NAME = os.environ.get("DATABASE_NAME", "Indexing_Bot_DB")
