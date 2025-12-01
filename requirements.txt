@@ -1,7 +1,7 @@
 # requirements.txt
 pyrogram
-motor
-umongo[motor] 
+motor              # motor library (umongo ki dependency)
+umongo             # umongo core library
 python-dotenv
 uvloop
-tgcrypto              # <--- Add this for speed
+tgcrypto
