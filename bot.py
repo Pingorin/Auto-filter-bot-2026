@@ -1,46 +1,69 @@
-from telegram.ext import Application, CommandHandler, MessageHandler, filters
-# MongoDB कनेक्शन और अन्य आयात (imports) यहाँ
 import os
 import logging
+from telegram import Update
+from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
+from pymongo import MongoClient
+from Script import load_plugins # Script.py से प्लगइन्स लोड करने के लिए
 
-# लॉगर सेटअप
-logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-                    level=logging.INFO)
+# Import your command file from the plugin folder
+from plugins.Command import start_command_plugin
 
-# MongoDB कनेक्शन (Environment Variable से URI लें)
+# --- Logging Setup ---
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.INFO
+)
+LOGGER = logging.getLogger(__name__)
+
+# --- Configuration (using Environment Variables) ---
+BOT_TOKEN = os.environ.get("BOT_TOKEN")
 MONGO_URI = os.environ.get("MONGO_URI")
-# ... MongoDB क्लाइंट सेटअप
 
-async def start_command(update, context):
-    """/start कमांड को हैंडल करता है और स्टार्ट इंटरफ़ेस देता है।"""
+if not BOT_TOKEN or not MONGO_URI:
+    LOGGER.error("BOT_TOKEN or MONGO_URI environment variables are not set.")
+    exit(1)
+
+# --- Database Connection (MongoDB) ---
+try:
+    mongo_client = MongoClient(MONGO_URI)
+    db = mongo_client["telegram_bot_db"] # Database Name
+    LOGGER.info("Successfully connected to MongoDB.")
+except Exception as e:
+    LOGGER.error(f"MongoDB connection failed: {e}")
+    # Consider what to do if the DB connection fails (e.g., exit or run without DB)
+
+# --- Handlers ---
+
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handles the /start command and shows the start interface."""
     user = update.effective_user
-    # यूजर का नाम बोल्ड (bold) करने के लिए HTML का उपयोग 
-    welcome_message = f"नमस्ते, **{user.first_name}**!\\n\\nमैं आपका Python-आधारित Telegram Bot हूँ। मैं Heroku पर डिप्लॉय हूँ और MongoDB का उपयोग करता हूँ।\\n\\nआपकी मदद कैसे कर सकता हूँ?"
     
-    await update.message.reply_html(
-        welcome_message,
-        # MarkdownV2 या HTML का उपयोग करें
-        parse_mode='MarkdownV2' 
-    )
+    # Example of how to use a function from a plugin file (Command.py)
+    await start_command_plugin(update, context, db) # Pass DB object if needed
 
-def main():
-    """मुख्य फ़ंक्शन जहाँ बॉट चलता है।"""
-    TOKEN = os.environ.get("BOT_TOKEN") # Heroku Config Vars से टोकन लें
-    application = Application.builder().token(TOKEN).build()
+async def unknown(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handles unknown commands."""
+    await update.message.reply_text("क्षमा करें, मैं इस कमांड को नहीं पहचानता।")
 
-    # /start कमांड के लिए हैंडलर
-    application.add_handler(CommandHandler("start", start_command))
-    
-    # ... अन्य हैंडलर यहाँ जोड़ें (जैसे Command.py से)
 
-    # Polling या Webhook के माध्यम से शुरू करें
-    # Heroku के लिए Webhook का उपयोग करना बेहतर है:
-    # PORT = int(os.environ.get('PORT', 8080))
-    # application.run_webhook(...)
-    
-    # लोकल टेस्टिंग के लिए Polling:
-    application.run_polling(poll_interval=3)
+def main() -> None:
+    """Start the bot."""
+    application = Application.builder().token(BOT_TOKEN).build()
 
-if __name__ == '__main__':
+    # --- Add Handlers ---
+    application.add_handler(CommandHandler("start", start))
+
+    # Add other handlers (e.g., from Script.py or other plugin files)
+    # application.add_handler(CommandHandler("help", help_command)) 
+
+    # Handle unknown commands last
+    application.add_handler(MessageHandler(filters.COMMAND, unknown))
+
+    LOGGER.info("Starting bot with Polling...")
+    # For Heroku deployment, Webhooks are often preferred, but Polling works too.
+    # We use Polling here for simplicity.
+    application.run_polling(allowed_updates=Update.ALL_TYPES)
+
+
+if __name__ == "__main__":
     main()
-
