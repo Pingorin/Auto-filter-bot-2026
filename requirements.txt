@@ -1,7 +1,7 @@
 # requirements.txt
 pyrogram
-motor              # motor library (umongo ki dependency)
-umongo             # umongo core library
+motor
+umongo[motor]   # <--- Yahan badlav kiya gaya hai
 python-dotenv
 uvloop
 tgcrypto
