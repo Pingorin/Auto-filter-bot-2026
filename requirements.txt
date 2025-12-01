@@ -4,3 +4,4 @@ motor
 umongo
 python-dotenv 
 uvloop
+tgsrypto
