@@ -1,6 +1,7 @@
+# requirements.txt
 pyrogram
-motor                # <--- MongoDB Driver
-umongo               # <--- ODM (Object Document Mapper)
+motor
+umongo[motor] 
 python-dotenv
 uvloop
-# Agar aap chahein to umongo ka version bhi specify kar sakte hain: umongo==3.2.0
+tgcrypto              # <--- Add this for speed
