@@ -1,12 +1,11 @@
 # config.py
 
-# BotFather se mila hua API Token yahan dalein
+# BotFather se mila hua token yahan dalein
 BOT_TOKEN = "YOUR_BOT_TOKEN_HERE"
 
-# Aapke bot ka username (bina @ ke), example: "MySuperBot"
-# Yeh "Add me to your groups" link ke liye zaruri hai
-BOT_USERNAME = "YourBotUsername"
+# MongoDB connection url (MongoDB Atlas ya local)
+MONGO_URL = "mongodb+srv://username:password@cluster.mongodb.net/?retryWrites=true&w=majority"
 
-# Links jo buttons par click karne se khulenge
+# Apne channel aur owner ka link
 CHANNEL_LINK = "https://t.me/YourChannelLink"
 OWNER_LINK = "https://t.me/YourUsername"
