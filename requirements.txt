@@ -1,7 +1,1 @@
-# requirements.txt
-pyrogram
-motor
-umongo[motor]   # <--- Yahan badlav kiya gaya hai
-python-dotenv
-uvloop
-tgcrypto
+python-telegram-bot
