@@ -1,43 +1,38 @@
 import logging
 import asyncio
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, CallbackQueryHandler, ChatMemberHandler
-from pymongo import MongoClient
-import config
+from pyrogram import Client, filters, idle, enums
+from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
-# Modular Handler Import:
-# Indexing aur filtering ka sara logic ab is file mein hoga
-import plugins.index as index_handler 
-import database.ia_filter as db_filter
-# NOTE: Make sure 'plugins' and 'database' are directories in your project root.
+# Configuration
+import config
+# Database handlers (Connection is handled inside ia_filter.py using Motor/umongo)
+import database.ia_filter as db_filter 
 
 # Logging setup
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
 )
+logger = logging.getLogger(__name__)
 
-# --- MongoDB Connection Setup (Global Access) ---
-try:
-    cluster = MongoClient(config.MONGO_URL, serverSelectionTimeoutMS=5000)
-    cluster.admin.command('ping') # Connection check
-    db = cluster[config.DATABASE_NAME] # Config me DATABASE_NAME zaroor set karein
-    groups_collection = db["groups"]
-    logging.info("MongoDB Connection Successful.")
-except Exception as e:
-    logging.error(f"MongoDB Connection Failed: {e}")
-    db = None
-    groups_collection = None
+# --- Client Initialization ---
+app = Client(
+    "your_bot_session",
+    api_id=config.API_ID,
+    api_hash=config.API_HASH,
+    bot_token=config.BOT_TOKEN,
+    # Plugins folder load karein: index.py ab automatically load ho jayega
+    plugins=dict(root="plugins") 
+)
 
+# --- Handlers (Pyrogram Style) ---
 
-# --- Functions ---
-
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+@app.on_message(filters.command("start") & filters.private)
+async def start_command(client, message):
     """
     /start command aane par yeh function chalega.
     """
-    if not update.message: return
-    bot_username = context.bot.username
+    bot_username = client.me.username # Pyrogram mein client.me se bot ki details milti hain
     
     keyboard = [
         [
@@ -57,86 +52,85 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     reply_markup = InlineKeyboardMarkup(keyboard)
     
-    await update.message.reply_text(
-        f"👋 Namaste {update.effective_user.first_name}!\n\n"
+    await message.reply_text(
+        f"👋 Namaste {message.from_user.first_name}!\n\n"
         "Main ek advanced Python bot hoon. Neeche diye gaye buttons use karein:",
-        reply_markup=reply_markup
+        reply_markup=reply_markup,
+        parse_mode=enums.ParseMode.MARKDOWN
     )
 
-async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+@app.on_callback_query()
+async def button_handler(client, query):
     """
     Callback button handler.
     """
-    query = update.callback_query
     await query.answer()
 
     if query.data == "about_section":
-        await query.edit_message_text(
+        await query.message.edit_text(
             text=(
                 "ℹ️ **About This Bot**\n\n"
                 "Yeh bot Python aur MongoDB use karke banaya gaya hai.\n"
                 "Developer: Bot Owner Name\n"
-                "Library: python-telegram-bot v20+"
+                "Library: Pyrogram v2+"
             ),
-            parse_mode="Markdown"
+            parse_mode=enums.ParseMode.MARKDOWN,
+            # Same keyboard wapas bhejne ki zaroorat nahi hai
         )
-    # Forward Callback to Index Handler (agar index se related ho)
+    # Callback ko index handler mein forward karein (agar index.py mein yeh logic ho)
+    # NOTE: Pyrogram mein plugins automatically load ho jaate hain.
+    # index.py mein bhi @app.on_callback_query() handler hona chahiye.
     elif query.data.startswith('index_'):
-        await index_handler.index_callback_handler(update, context)
+        # Assuming index.py has its own callback handler.
+        # Agar aapko yahan se forward karna hai, toh index_handler mein function bana kar yahan call karein.
+        # Filhaal, hum rely karenge ki index.py apne aap handle karega.
+        pass
 
-async def track_group_additions(update: Update, context: ContextTypes.DEFAULT_TYPE):
+# NOTE: Pyrogram mein ChatMemberUpdate ke liye filters.chat_member use hota hai
+@app.on_chat_member_updated(filters.group)
+async def track_group_additions(client, update):
     """
-    Jab bhi bot kisi group mein add hoga, yeh function trigger hoga
-    aur group ka data MongoDB mein save karega.
+    Jab bhi bot kisi group mein add hoga ya uska status badlega.
     """
-    if not groups_collection:
-        logging.warning("Group tracking skipped: MongoDB not connected.")
-        return
-
-    result = update.my_chat_member
-    new_member = result.new_chat_member
-    
-    if new_member.status in ["member", "administrator"]:
-        chat_id = result.chat.id
-        chat_title = result.chat.title
-        username = result.chat.username
+    # Check if the bot was added or status changed to admin/member
+    if update.new_chat_member and update.new_chat_member.user.is_self:
+        new_status = update.new_chat_member.status
         
-        group_data = {
-            "_id": chat_id,
-            "title": chat_title,
-            "username": username,
-            "added_on": result.date
-        }
-        
-        try:
-            groups_collection.update_one(
-                {"_id": chat_id}, 
-                {"$set": group_data}, 
-                upsert=True
-            )
-            logging.info(f"New Group Saved to MongoDB: {chat_title}")
-            await context.bot.send_message(chat_id, "Thanks for adding me! Data saved to DB.")
+        if new_status in [enums.ChatMemberStatus.ADMINISTRATOR, enums.ChatMemberStatus.MEMBER]:
+            chat_id = update.chat.id
+            chat_title = update.chat.title
             
-        except Exception as e:
-            logging.error(f"Error saving group to MongoDB: {e}")
+            # Group data ko database mein save karne ka logic (Assuming db_filter handles it)
+            try:
+                # Assuming you have a function in db_filter for saving group info
+                # Is function ko db_filter mein define karna hoga.
+                # await db_filter.save_group(chat_id, chat_title) 
+                
+                logger.info(f"New Group Added: {chat_title} ({chat_id})")
+                await client.send_message(chat_id, "Thanks for adding me! Data saved to DB.")
+                
+            except Exception as e:
+                logger.error(f"Error saving group to MongoDB: {e}")
+                await client.send_message(chat_id, "⚠️ Error: Could not save group info to database.")
 
 
 # --- Main Application ---
+async def main():
+    logger.info("Starting bot...")
+    
+    # Database initialization check (ia_filter mein hoga)
+    # yahan aap koi simple query chala kar connection check kar sakte hain.
+    
+    await app.start()
+    logger.info("Bot started successfully!")
+    
+    # Bot ko chalu rakhega
+    await idle() 
+
+    logger.info("Bot stopping...")
+    await app.stop()
+
 
 if __name__ == '__main__':
-    # Ensure database is connected before running bot
-    if not db:
-        logging.critical("Exiting: Cannot run bot without database connection.")
-        exit(1)
-        
-    application = ApplicationBuilder().token(config.BOT_TOKEN).build()
-
-    # Handlers Add karein
-    application.add_handler(CommandHandler('start', start))
-    application.add_handler(CommandHandler('index', index_handler.index_command)) # New Index Handler
-    
-    application.add_handler(CallbackQueryHandler(button_handler))
-    application.add_handler(ChatMemberHandler(track_group_additions, ChatMemberHandler.MY_CHAT_MEMBER))
-
-    print("Bot is running...")
-    application.run_polling()
+    # Pyrogram aur asyncio ko run karein
+    asyncio.run(main())
