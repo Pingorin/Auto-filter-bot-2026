@@ -1,17 +1,17 @@
-# plugins/index.py
+# plugins/index.py (Reverted back to client.iter_messages as requested)
 import asyncio
 import re
 import time
 from pyrogram import Client, filters
 from pyrogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from database.ia_filterdb import save_file, get_current_skip_id, set_new_skip_id
+from pyrogram.errors import FloodWait
 
 # --- Global State and Locks ---
 INDEX_LOCK = asyncio.Lock()
-# Current status tracking (kise index kiya jaa raha hai)
 temp = {
-    "CURRENT": 0,    # Message ID jahan se shuru karna hai (Skip ID)
-    "CANCEL": False  # Agar indexing cancel karni hai
+    "CURRENT": 0,    
+    "CANCEL": False  
 }
 
 # --- 1. Indexing Request Dena (send_for_index) ---
@@ -20,27 +20,20 @@ async def send_for_index(client: Client, message: Message):
     """
     Handles indexing initiation via forwarded message or link.
     """
-    if message.from_user.id not in client.ADMINS:
-        # Indexing sirf Admin hi shuru kar sakte hain
-        return await message.reply_text("🚫 **Access Denied.** Only bot admins can initiate the indexing process.")
-
     if not message.text and not message.forward_from_chat:
-        return # Skip if not link or forward
+        return 
 
     # --- Extract Channel ID and Message ID ---
     chat_id = None
     last_msg_id = None
     
     if message.forward_from_chat:
-        # Forwarded message
         chat_id = message.forward_from_chat.id
         last_msg_id = message.forward_from_message_id
     elif message.text:
-        # Link
         match = re.search(r't\.me/([^/]+)/(\d+)', message.text)
         if match:
             try:
-                # Username ya public link se ID nikalna
                 chat = await client.get_chat(match.group(1))
                 chat_id = chat.id
                 last_msg_id = int(match.group(2))
@@ -54,7 +47,6 @@ async def send_for_index(client: Client, message: Message):
         
     # --- Check Bot's Status in Channel ---
     try:
-        # Check if the bot is a member of the channel
         await client.get_chat_member(chat_id, 'me')
     except Exception:
         return await message.reply_text("🚫 **Bot is not a member** of this channel. Please add the bot first.")
@@ -74,13 +66,18 @@ async def send_for_index(client: Client, message: Message):
         ]
     ])
 
-    # --- Admin Request (DM mein seedhe button) ---
-    await message.reply_text(
-        f"**Index Request Accepted (Admin)**. Proceed to start indexing?",
-        reply_markup=buttons
-    )
-    # Note: Normal user request yahan se hata diya gaya hai, kyunki /index command Admin-only hai.
-
+    if message.from_user.id in client.ADMINS:
+        await message.reply_text(
+            f"**Index Request Accepted (Admin)**. Proceed to start indexing?",
+            reply_markup=buttons
+        )
+    else:
+        await client.send_message(
+            client.LOG_CHANNEL,
+            request_text,
+            reply_markup=buttons
+        )
+        await message.reply_text("✅ Your indexing request has been sent to the admin for approval.")
 
 # --- 2. Request Approve Karna (index_files) ---
 @Client.on_callback_query(filters.regex(r'^index#'))
@@ -124,25 +121,6 @@ async def cancel_indexing_handler(client: Client, callback_query: CallbackQuery)
     temp["CANCEL"] = True
     await callback_query.answer("Cancellation request sent...", show_alert=True)
 
-# --- 2.2 Reject Indexing ---
-@Client.on_callback_query(filters.regex(r'^reject#'))
-async def reject_indexing(client: Client, callback_query: CallbackQuery):
-    """Handles the rejection of an indexing request."""
-    if callback_query.from_user.id not in client.ADMINS:
-        return await callback_query.answer("You are not authorized to reject indexing.", show_alert=True)
-        
-    try:
-        _, chat_id_str = callback_query.data.split('#')
-        chat_id = int(chat_id_str)
-    except:
-        return await callback_query.answer("Invalid request data.", show_alert=True)
-
-    await callback_query.message.edit_text(
-        f"❌ **Indexing Request Rejected**\n\nChannel ID: `{chat_id}`\nRejected by: {callback_query.from_user.mention}"
-    )
-    await callback_query.answer("Indexing request rejected.", show_alert=True)
-
-
 # --- 3. Asli Indexing (index_files_to_db) ---
 async def index_files_to_db(client: Client, chat_id: int, last_msg_id: int, status_msg: Message):
     
@@ -155,18 +133,36 @@ async def index_files_to_db(client: Client, chat_id: int, last_msg_id: int, stat
     error_count = 0
     start_time = time.time()
     
-    temp["CURRENT"] = await get_current_skip_id()
+    current_skip = await get_current_skip_id()
+    
+    # Status update: skip ID ki jaankari dena
+    await status_msg.edit_text(
+        status_msg.text + f"\nSkip ID found: `{current_skip}`\nIndexing up to ID: `{last_msg_id}`",
+        reply_markup=status_msg.reply_markup
+    )
     
     try:
-        # last_msg_id ko limit ke roop mein istemal karna
-        async for message in client.iter_messages(chat_id, limit=last_msg_id, offset=temp["CURRENT"]):
+        # --- Using client.iter_messages (Preferred Method) ---
+        messages_to_scan = last_msg_id - current_skip
+        
+        async for message in client.iter_messages(chat_id, limit=messages_to_scan):
             
-            messages_fetched += 1
-            
+            # --- Check Stop Conditions ---
             if temp["CANCEL"]:
-                await status_msg.edit_text("❌ Indexing Cancelled by Admin.")
                 break
                 
+            # Skip messages jo humare target se zyada naye hain (agar limit approx ho)
+            if message.id > last_msg_id:
+                continue
+
+            # Indexing complete agar hum current_skip ID tak pahunch gaye hain
+            if message.id <= current_skip:
+                await status_msg.edit_text("✅ Reached previously indexed message ID. Stopping.")
+                break
+            
+            messages_fetched += 1
+
+            # --- Message Content Checks ---
             if message.empty:
                 deleted_count += 1
                 continue
@@ -175,11 +171,12 @@ async def index_files_to_db(client: Client, chat_id: int, last_msg_id: int, stat
                 no_media_count += 1
                 continue
                 
-            # --- Media Type Check ---
+            # --- Media Type Check and Saving ---
             if message.video or message.audio or message.document:
                 media = message.video or message.audio or message.document
                 file_caption = message.caption if message.caption else ""
                 
+                # save_file ab umongo Document use karega
                 status = await save_file(media, file_caption)
                 
                 if status == 'success':
@@ -196,7 +193,7 @@ async def index_files_to_db(client: Client, chat_id: int, last_msg_id: int, stat
             if messages_fetched % 60 == 0:
                 elapsed_time = time.time() - start_time
                 status_text = (
-                    "**⏳ Indexing Progress...**\n\n"
+                    "**⏳ Indexing Progress (Iter Mode)...**\n\n"
                     f"Messages Scanned: **{messages_fetched}**\n"
                     f"Saved Files: **{total_files}**\n"
                     f"Duplicates Found: **{duplicate_files}**\n"
@@ -212,8 +209,13 @@ async def index_files_to_db(client: Client, chat_id: int, last_msg_id: int, stat
                 except Exception:
                     pass
 
+    except FloodWait as e:
+        final_text = f"🚨 Indexing Stopped (FloodWait):\n`Please wait for {e.value} seconds.`"
+        await asyncio.sleep(e.value + 5)
     except Exception as e:
         final_text = f"🚨 Indexing Failed:\n`{e}`"
+        if "iter_messages" in str(e) or "attribute 'iter_messages'" in str(e):
+             final_text += "\n\n⚠️ **CRITICAL WARNING:** Yeh error ab bhi Pyrogram version ki wajah se hai. Kripya **deployment cache clear karein** aur dobara deploy karein."
     else:
         final_text = "**✅ Indexing Complete!**"
 
@@ -232,5 +234,3 @@ async def index_files_to_db(client: Client, chat_id: int, last_msg_id: int, stat
     
     if INDEX_LOCK.locked():
         INDEX_LOCK.release()
-        
-    temp["CURRENT"] = 0
