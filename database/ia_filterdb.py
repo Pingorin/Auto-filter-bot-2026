@@ -1,9 +1,8 @@
-# database/ia_filterdb.py (Fix: Removing deprecated/incorrect set_motor_backend import)
+# database/ia_filterdb.py (Fixed: Removed incorrect 'set_motor_backend' import/call)
 import re
 from motor.motor_asyncio import AsyncIOMotorClient
-# umongo se ab sirf zaroori cheezein import karenge
+# umongo se ab sirf zaroori cheezein import karenge (set_motor_backend hata diya gaya hai)
 from umongo import Document, fields 
-# umongo.frameworks se MotorAsyncIOInstance import karenge
 from umongo.frameworks import MotorAsyncIOInstance
 from pyrogram.file_id import FileId 
 from config import Config 
@@ -12,8 +11,8 @@ from config import Config
 # MongoDB Connection
 client = AsyncIOMotorClient(Config.DB_URI)
 db = client["IndexingBotDB"]
-# MotorAsyncIOInstance se umongo ko motor backend ke saath initialize karna.
-# Ismein set_motor_backend ki zaroorat nahi hai.
+# MotorAsyncIOInstance ko db ke saath initialize karna.
+# Ismein set_motor_backend ki zaroorat nahi hai (umongo internally handle karta hai).
 instance = MotorAsyncIOInstance(db) 
 
 # --- Document Schema Definition using umongo ---
