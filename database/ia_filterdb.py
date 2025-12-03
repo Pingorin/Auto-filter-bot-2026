@@ -1,21 +1,23 @@
-# database/ia_filterdb.py (Updated with Schema and Search Logic)
+# database/ia_filterdb.py
 
 import re
 from motor.motor_asyncio import AsyncIOMotorClient
-from pyrogram.file_id import FileId, FileType, unpack_new_file_id
+# Note: Pyrogram 2.0+ mein file_id modules mein hai
+from pyrogram.file_id import FileId, FileType, unpack_file_id, pack_file_id 
 from config import Config
 
-# MongoDB Connection (Assuming client, db are already initialized)
+# --- MongoDB Connection ---
 client = AsyncIOMotorClient(Config.DB_URI)
 db = client["IndexingBotDB"]
 files_collection = db["files"] 
-settings_collection = db["settings"]
+settings_collection = db["settings"] # Skip ID saving ke liye
 
 # --- 1. Database Index Setup (Important for Fast Search) ---
 async def setup_db_indexes():
     """Ensures file_name and file_unique_id have indexes."""
     try:
         # 1. file_name index for fast searching (Text Indexing)
+        # Agar aap advanced search chahte hain, toh 'text' index banayein:
         await files_collection.create_index(
             [("file_name", "text")], 
             name="file_name_search_index"
@@ -29,30 +31,30 @@ async def setup_db_indexes():
         )
         print("MongoDB indexes created successfully.")
     except Exception as e:
-        print(f"Error creating MongoDB indexes: {e}")
-
-# Call setup_db_indexes() during bot startup in bot.py!
+        # Index creation sirf ek baar hona chahiye. Agar index pehle se ho to yeh error aayega.
+        if "Index with name" not in str(e) and "file_name_search_index" not in str(e):
+             print(f"Error creating MongoDB indexes: {e}")
 
 # --- Helper Function (Technical) ---
 def get_file_details(media):
     """Unpacks Pyrogram's file ID and extracts details."""
     if not media:
-        return None, None, None, None
+        return None
         
-    # Pyrogram's unpack_new_file_id breaks down file_id into permanent parts
-    file_id_parts = unpack_new_file_id(media.file_id)
+    # Pyrogram 2.0+ mein unpack_file_id use hota hai
+    file_id_parts = unpack_file_id(media.file_id)
     
     # file_ref (bytes) is crucial for persistent storage
     file_ref = file_id_parts.file_reference
     
     return {
-        "file_id": media.file_id,                     # Original ID (less important for resend)
-        "file_unique_id": media.file_unique_id,       # Unique ID (important for duplicate check)
-        "file_ref": file_ref,                         # Permanent File Reference (important for resend)
+        "file_id": media.file_id,                      # Original ID
+        "file_unique_id": media.file_unique_id,        # Unique ID for duplicate check
+        "file_ref": file_ref,                          # Permanent File Reference (bytes)
         "file_name": media.file_name,
         "file_size": media.file_size,
-        "file_type": media.media.value,               # 'video', 'document', 'audio'
-        "caption": media.caption or ""                # Caption ko empty string rakha hai agar missing ho
+        "file_type": media.media.value,                # 'video', 'document', 'audio'
+        "caption": media.caption or ""                 # Caption ko empty string rakha hai
     }
 
 # --- 2. save_file Function (Asli Saving) ---
@@ -62,7 +64,9 @@ async def save_file(media):
         return 'error'
 
     # Clean Name Logic: Replace common separators with space for better search
-    clean_name = re.sub(r"(_|\-|\.|\+)", " ", details['file_name']).lower()
+    # Yeh cleaning Text Index ke saath use karne ke liye zaroori nahi,
+    # lekin Regex search ke liye faydemand hai.
+    clean_name = re.sub(r"(_|\-|\.|\+)", " ", details['file_name']).lower().strip()
     details['clean_name'] = clean_name # Nayi field for efficient search (optional)
 
     # 1. Duplicate Check & Commit
@@ -81,33 +85,33 @@ async def save_file(media):
 # --- 3. get_search_results Function (Searching) ---
 async def get_search_results(query: str, file_type: str = None, max_results: int = 10, offset: int = 0):
     
-    # Regex Banana (User query ko search-friendly banana)
-    # Yeh pattern "query" ko "query", "q.u.e.r.y", "query-" jaise sabhi forms se match karega.
-    query_regex = re.escape(query).replace(" ", ".*?")
+    # --- Search Query Filtering ---
+    # User ki query ko search-friendly banana. (.*?) wildcard ki tarah kaam karta hai.
+    query_regex = re.escape(query).replace(" ", ".*?") 
     
-    # Base Query Filter
+    # Base Filter (Case-insensitive search in file_name)
     filter_query = {
-        "file_name": {"$regex": query_regex, "$options": "i"} # Case-insensitive search
+        "file_name": {"$regex": query_regex, "$options": "i"} 
     }
 
-    # File Type Filter
+    # Optional: File Type Filter
     if file_type:
         filter_query["file_type"] = file_type
         
-    # --- Optional: Caption Filtering Logic (Agar Config mein enable ho) ---
-    # Agar aap caption me bhi dhoondna chahte hain, to yeh logic use karein
-    # if Config.USE_CAPTION_FILTER: # Assume this is a config variable
-    #     filter_query = {
-    #         "$or": [
-    #             {"file_name": {"$regex": query_regex, "$options": "i"}},
-    #             {"caption": {"$regex": query_regex, "$options": "i"}}
-    #         ]
-    #     }
-    # Agar aapne Text Index use kiya hai to $text: search use karna behtar hai.
+    # Agar aap Text Index use kar rahe hain, toh aap seedha yeh use kar sakte hain (Zyada efficient):
+    # filter_query = {"$text": {"$search": query}} 
+    
     
     cursor = files_collection.find(filter_query).sort("_id", 1).skip(offset).limit(max_results)
     
     results = await cursor.to_list(length=max_results)
     total_count = await files_collection.count_documents(filter_query)
     
+    # 
+    
     return results, total_count
+
+# --- Skip ID Functions (For Indexing Progress) ---
+# Skip ID ko database mein save/get karne ke liye (same as previous)
+# ... (get_current_skip_id, set_new_skip_id functions yahan aayenge)
+
