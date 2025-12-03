@@ -2,6 +2,6 @@ python-telegram-bot==21.0
 pyrogram==2.0.100
 tgcrypto
 motor
-umongo
+umongo==4.0.0
 dnspython
 cryptography
