@@ -1,7 +1,7 @@
-# database/ia_filterdb.py (Fix: Umongo ImportError and AttributeError)
+# database/ia_filterdb.py (Final Fix for Umongo 3.x)
 import re
 from motor.motor_asyncio import AsyncIOMotorClient
-# set_motor_backend ko hata diya gaya hai
+# Correct import structure: set_motor_backend hata diya gaya hai
 from umongo import Document, fields 
 from umongo.frameworks import MotorAsyncIOInstance
 from pyrogram.file_id import FileId 
@@ -11,7 +11,7 @@ from config import Config
 # MongoDB Connection
 client = AsyncIOMotorClient(Config.DB_URI)
 db = client["IndexingBotDB"]
-# MotorAsyncIOInstance ko db ke saath initialize karna.
+# MotorAsyncIOInstance is enough to set the motor backend.
 instance = MotorAsyncIOInstance(db) 
 
 # --- Document Schema Definition using umongo ---
@@ -31,7 +31,7 @@ class Media(Document):
     file_size = fields.IntField(required=True)
     file_type = fields.StrField(required=True)
     
-    # 3. FIX: default="" parameter hata diya gaya hai (jiske karan AttributeError aa raha tha)
+    # 3. FIX: 'default' removed from StringField to fix AttributeError
     caption = fields.StrField() 
     
     # 4. Search Index Field
@@ -89,8 +89,7 @@ async def save_file(media, caption):
         file_name=file_name,
         file_size=file_size,
         file_type=file_type,
-        # caption="" hai, aur ab umongo schema isko bina default ke accept karega
-        caption=caption,
+        caption=caption, # caption ko khaali string ("") accept kar dega
         cleaned_name=cleaned_name,
     )
 
