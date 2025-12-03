@@ -20,6 +20,10 @@ async def send_for_index(client: Client, message: Message):
     """
     Handles indexing initiation via forwarded message or link.
     """
+    if message.from_user.id not in client.ADMINS:
+        # Indexing sirf Admin hi shuru kar sakte hain
+        return await message.reply_text("🚫 **Access Denied.** Only bot admins can initiate the indexing process.")
+
     if not message.text and not message.forward_from_chat:
         return # Skip if not link or forward
 
@@ -70,21 +74,13 @@ async def send_for_index(client: Client, message: Message):
         ]
     ])
 
-    # --- Authorization Check (Using client.ADMINS from bot.py) ---
-    if message.from_user.id in client.ADMINS:
-        # 1. Admin Request (DM mein seedhe button)
-        await message.reply_text(
-            f"**Index Request Accepted (Admin)**. Proceed to start indexing?",
-            reply_markup=buttons
-        )
-    else:
-        # 2. Normal User Request (LOG_CHANNEL mein forward)
-        await client.send_message(
-            client.LOG_CHANNEL, # client.LOG_CHANNEL ka upyog
-            request_text,
-            reply_markup=buttons
-        )
-        await message.reply_text("✅ Your indexing request has been sent to the admin for approval.")
+    # --- Admin Request (DM mein seedhe button) ---
+    await message.reply_text(
+        f"**Index Request Accepted (Admin)**. Proceed to start indexing?",
+        reply_markup=buttons
+    )
+    # Note: Normal user request yahan se hata diya gaya hai, kyunki /index command Admin-only hai.
+
 
 # --- 2. Request Approve Karna (index_files) ---
 @Client.on_callback_query(filters.regex(r'^index#'))
@@ -127,6 +123,25 @@ async def cancel_indexing_handler(client: Client, callback_query: CallbackQuery)
         
     temp["CANCEL"] = True
     await callback_query.answer("Cancellation request sent...", show_alert=True)
+
+# --- 2.2 Reject Indexing ---
+@Client.on_callback_query(filters.regex(r'^reject#'))
+async def reject_indexing(client: Client, callback_query: CallbackQuery):
+    """Handles the rejection of an indexing request."""
+    if callback_query.from_user.id not in client.ADMINS:
+        return await callback_query.answer("You are not authorized to reject indexing.", show_alert=True)
+        
+    try:
+        _, chat_id_str = callback_query.data.split('#')
+        chat_id = int(chat_id_str)
+    except:
+        return await callback_query.answer("Invalid request data.", show_alert=True)
+
+    await callback_query.message.edit_text(
+        f"❌ **Indexing Request Rejected**\n\nChannel ID: `{chat_id}`\nRejected by: {callback_query.from_user.mention}"
+    )
+    await callback_query.answer("Indexing request rejected.", show_alert=True)
+
 
 # --- 3. Asli Indexing (index_files_to_db) ---
 async def index_files_to_db(client: Client, chat_id: int, last_msg_id: int, status_msg: Message):
