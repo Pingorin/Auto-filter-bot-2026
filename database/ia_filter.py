@@ -4,46 +4,48 @@ import config
 from pymongo.errors import DuplicateKeyError
 from motor.motor_asyncio import AsyncIOMotorClient
 from umongo import Document, fields
-
-# --- ZAROORI FIXES YAHAN HAIN (Universal Import Logic) ---
-# Hum MotorAsyncIOInstance ko ek compatible path se import karne ki koshish karenge.
-try:
-    # 1. Sabse common naya path
-    from umongo.frameworks.motor import MotorAsyncIOInstance
-except ImportError:
-    try:
-        # 2. Purana/Alternative path
-        from umongo.frameworks import MotorAsyncIOInstance
-    except ImportError:
-        # 3. Agar koi bhi kaam na kare, toh dependency issue hai.
-        # Filhal, hum code ko chalane ke liye ek dummy class bana dete hain (production use ke liye nahi)
-        logging.critical("CRITICAL: Failed to import MotorAsyncIOInstance from umongo. Check umongo version.")
-        # Agar bot chalate rahna hai, toh aapko yahan ek graceful exit dena hoga.
-        # Hum MotorInstance hi try kar lete hain (Last resort for compatibility)
-        from umongo import Instance as MotorAsyncIOInstance 
-        # Yeh line sirf code ko compile karne ke liye hai, functionality guarantee nahi.
-        
-# ----------------------------------
+import sys
 
 # Logger Setup
 logger = logging.getLogger(__name__)
+
+# ######################################################
+# ### UNIVERSAL UMONGO/MOTOR INSTANCE IMPORT LOGIC ###
+# ######################################################
+try:
+    # 1. Sabse common naya path (umongo v4.x)
+    from umongo.frameworks.motor import MotorAsyncIOInstance
+except ImportError:
+    try:
+        # 2. Purana/Alternative path (umongo v3.x)
+        from umongo.frameworks import MotorAsyncIOInstance
+    except ImportError:
+        # 3. Agar koi bhi kaam na kare, toh dependency issue hai.
+        logger.critical(
+            "CRITICAL: Failed to import MotorAsyncIOInstance from umongo. "
+            "Bot will not run without proper database connectivity. "
+            "Please check umongo and motor versions in requirements.txt."
+        )
+        sys.exit(1) # Zaroori: Agar DB connect na ho toh bot ko rok dein
 
 # --- MongoDB Connection ---
 client = AsyncIOMotorClient(config.MONGO_URL)
 db = client[config.DATABASE_NAME]
 
-# 2. Sahi Initialization (Ab yeh MotorAsyncIOInstance class se initialize hoga)
+# 2. Sahi Initialization
 try:
+    # Ab yeh MotorAsyncIOInstance class se initialize hoga
     instance = MotorAsyncIOInstance(db) 
+    logger.info("MongoDB Instance successfully initialized.")
 except TypeError as e:
-    # Agar phir bhi TypeError aaye toh user ko clear message dein
-    logging.error(f"UMONGO INIT ERROR: {e}. Check if umongo is compatible with motor version.")
-    raise
+    logger.error(f"UMONGO INIT FATAL ERROR: {e}. Check if umongo is compatible with motor version.")
+    sys.exit(1) 
+# ######################################################
+
 
 # --- 1. Database Structure (Schema) ---
 @instance.register
 class Media(Document):
-# ... baaki ka Media class ka code waisa hi rahega ...
     file_id = fields.StrField(attribute='_id')
     file_ref = fields.StrField(allow_none=True)
     file_name = fields.StrField(required=True)
@@ -56,35 +58,41 @@ class Media(Document):
 
     class Meta:
         collection_name = "media_files"
+        # Text Indexing for Fast Search
         indexes = ('$file_name', )
 
 # --- 2. Save File Function (Asli Saving & Cleaning) ---
 async def save_file(media):
-# ... save_file function ka code waisa hi rahega ...
+    """File ko database mein save karta hai (Unpack ID -> Clean Name -> Commit)"""
     try:
+        # Zaroori: file_id ko database mein check karne se pehle hi nikaal lein
         file_id = media.file_id
+        
+        # Check if file already exists using file_id as primary key
+        file = await Media.find_one({'_id': file_id})
+        if file:
+            return 'duplicate', 0
+
+        # --- Data Cleaning and Preparation ---
         file_ref = getattr(media, "file_ref", None)
         original_name = getattr(media, "file_name", "")
-        file_size = media.file_size
-        file_type = media.file_type
-        mime_type = getattr(media, "mime_type", "None")
-        caption = getattr(media, "caption", None)
-
-        if not original_name and caption:
-            original_name = caption.splitlines()[0]
-
-        # Naam Saaf Karna (Cleaning using Regex)
+        
+        if not original_name and media.caption:
+            original_name = media.caption.splitlines()[0]
+        
+        # Naam Saaf Karna (Cleaning using Regex: _, -, ., + ko space se badalna)
         clean_name = re.sub(r"(_|\-|\.|\+)", " ", original_name)
         clean_name = clean_name.strip()
 
+        # Media Object creation and commit
         media_file = Media(
             file_id=file_id,
             file_ref=file_ref,
             file_name=clean_name,
-            file_size=file_size,
-            file_type=file_type,
-            mime_type=mime_type,
-            caption=caption,
+            file_size=media.file_size,
+            file_type=media.file_type,
+            mime_type=media.mime_type,
+            caption=media.caption,
             chat_id=getattr(media, "chat_id", None),
             message_id=getattr(media, "message_id", None)
         )
@@ -101,14 +109,16 @@ async def save_file(media):
 
 # --- 3. Search Function (Indexing & Regex) ---
 async def get_search_results(query, max_results=10, offset=0, lang_code=None):
-# ... get_search_results function ka code waisa hi rahega ...
+    """User ki query se files search karta hai."""
     query = query.strip()
     if not query:
         return []
 
+    # Regex banana (Case Insensitive Search)
     regex = re.compile(f".*{re.escape(query)}.*", re.IGNORECASE)
 
-    if config.USE_CAPTION_FILTER:
+    # Database Filter Query (Caption filtering optional)
+    if config.USE_CAPTION_FILTER: # Yeh variable config.py mein hona chahiye
         filter_criteria = {
             '$or': [
                 {'file_name': regex},
@@ -118,8 +128,9 @@ async def get_search_results(query, max_results=10, offset=0, lang_code=None):
     else:
         filter_criteria = {'file_name': regex}
 
+    # Database se find karna (skip aur limit ke saath)
     cursor = Media.find(filter_criteria)
-    cursor.sort('$natural', -1)
+    cursor.sort('$natural', -1) # Naye files pehle dikhenge
     cursor.skip(offset).limit(max_results)
 
     files = await cursor.to_list(length=max_results)
