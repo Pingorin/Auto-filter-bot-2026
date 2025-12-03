@@ -20,13 +20,13 @@ except ImportError:
         # 2. Purana/Alternative path (umongo v3.x)
         from umongo.frameworks import MotorAsyncIOInstance
     except ImportError:
-        # 3. Agar koi bhi kaam na kare, toh dependency issue hai.
+        # 3. Agar koi bhi kaam na kare, toh toh dependency issue hai.
         logger.critical(
             "CRITICAL: Failed to import MotorAsyncIOInstance from umongo. "
             "Bot will not run without proper database connectivity. "
             "Please check umongo and motor versions in requirements.txt."
         )
-        sys.exit(1) # Zaroori: Agar DB connect na ho toh bot ko rok dein
+        sys.exit(1)
 
 # --- MongoDB Connection ---
 client = AsyncIOMotorClient(config.MONGO_URL)
@@ -46,7 +46,11 @@ except TypeError as e:
 # --- 1. Database Structure (Schema) ---
 @instance.register
 class Media(Document):
-    file_id = fields.StrField(attribute='_id')
+    # FIX: 'file_id' ko '_id' se map karne wala error dene wala syntax hata diya
+    # Umongo ko aamtaur par field ka naam '_id' hi dena behtar hota hai agar primary key use karni hai.
+    # Lekin yahan hum is field ko 'file_unique_id' kehte hain aur 'save_file' mein '_id' set karte hain.
+    file_unique_id = fields.StrField(required=True) # <-- Naya naam
+    
     file_ref = fields.StrField(allow_none=True)
     file_name = fields.StrField(required=True)
     file_size = fields.IntField(required=True)
@@ -64,11 +68,10 @@ class Media(Document):
 # --- 2. Save File Function (Asli Saving & Cleaning) ---
 async def save_file(media):
     """File ko database mein save karta hai (Unpack ID -> Clean Name -> Commit)"""
+    file_id = media.file_id # Telegram se aaya hua file_id
+
     try:
-        # Zaroori: file_id ko database mein check karne se pehle hi nikaal lein
-        file_id = media.file_id
-        
-        # Check if file already exists using file_id as primary key
+        # Check if file already exists using file_id (jo '_id' mein save hoga)
         file = await Media.find_one({'_id': file_id})
         if file:
             return 'duplicate', 0
@@ -86,7 +89,10 @@ async def save_file(media):
 
         # Media Object creation and commit
         media_file = Media(
-            file_id=file_id,
+            # '_id' field ko Telegram ke file_id se set karna (Duplicate check yahi se hota hai)
+            _id=file_id, 
+            file_unique_id=file_id, # Schema mein bhi save karna (optional)
+            
             file_ref=file_ref,
             file_name=clean_name,
             file_size=media.file_size,
@@ -108,6 +114,7 @@ async def save_file(media):
         return 'error', e
 
 # --- 3. Search Function (Indexing & Regex) ---
+# ... (Search function ko waisa hi rakhenge, usmein koi syntax error nahi hai)
 async def get_search_results(query, max_results=10, offset=0, lang_code=None):
     """User ki query se files search karta hai."""
     query = query.strip()
