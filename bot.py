@@ -1,4 +1,3 @@
-# bot.py
 import asyncio
 from pyrogram import Client, filters
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, Message, CallbackQuery
@@ -6,17 +5,30 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from config import Config
 
 # --- Database Setup (MongoDB) ---
+# Global client setup
 mongo_client = AsyncIOMotorClient(Config.DB_URI)
 db = mongo_client["MyTelegramBotDB"] # Database ka naam
 groups_collection = db["groups"]     # Collection jahan groups save honge
 
 # --- Bot Client Setup ---
+# 'plugins' dictionary Pyrogram ko batata hai ki plugins directory ko load karna hai
 app = Client(
     "my_bot",
     api_id=Config.API_ID,
     api_hash=Config.API_HASH,
-    bot_token=Config.BOT_TOKEN
+    bot_token=Config.BOT_TOKEN,
+    plugins={
+        "root": "plugins"  # Is line se plugins folder ke saare handlers load honge
+    }
 )
+
+# --- Attach Config to Client ---
+# Plugins (jaise index.py) ko Config data (ADMINS, LOG_CHANNEL) access karne ke liye
+app.ADMINS = Config.ADMINS
+app.LOG_CHANNEL = Config.LOG_CHANNEL
+app.DEFAULT_SKIP_ID = Config.DEFAULT_SKIP_ID
+# Agar future mein USE_CAPTION_FILTER use karte hain to use bhi yahan attach kar sakte hain
+# app.USE_CAPTION_FILTER = Config.USE_CAPTION_FILTER 
 
 # --- Helper Function: Save Group to DB ---
 async def add_group_to_db(group_id, group_name, added_by_user_id):
@@ -83,8 +95,8 @@ async def about_callback(client: Client, callback_query: CallbackQuery):
         "**🤖 Bot Information**\n\n"
         "Version: 1.0\n"
         "Framework: Pyrogram & MongoDB\n"
-        "Feature: Group Tracking System\n\n"
-        "Yeh bot groups ko manage aur track karne ke liye banaya gaya hai."
+        "Feature: Group Tracking System and Indexing Engine\n\n"
+        "Yeh bot groups ko manage aur files ko index karne ke liye banaya gaya hai."
     )
     await callback_query.answer(info_text, show_alert=True)
 
