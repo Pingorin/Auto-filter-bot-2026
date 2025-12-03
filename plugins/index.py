@@ -1,4 +1,4 @@
-# plugins/index.py
+# plugins/index.py (Updated to pass 'caption' to save_file)
 import asyncio
 import re
 import time
@@ -173,7 +173,10 @@ async def index_files_to_db(client: Client, chat_id: int, last_msg_id: int, stat
                 # Media saving ke liye save_file ko call karna
                 media = message.video or message.audio or message.document
                 
-                status = await save_file(media)
+                # File caption nikalna
+                file_caption = message.caption if message.caption else ""
+                
+                status = await save_file(media, file_caption) # <--- UPDATED LINE
                 
                 if status == 'success':
                     total_files += 1
