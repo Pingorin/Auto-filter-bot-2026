@@ -2,16 +2,22 @@ import logging
 import re
 import config
 from pymongo.errors import DuplicateKeyError
-from umongo import Instance, Document, fields
+# Nayi Import Line: umongo.frameworks.Motor use karein
+from umongo.frameworks import Motor 
+from umongo import Document, fields
 from motor.motor_asyncio import AsyncIOMotorClient
 
 # Logger Setup
 logger = logging.getLogger(__name__)
 
-# MongoDB Connection
+# --- MongoDB Connection ---
+# MongoDB Connection (Client, Database)
 client = AsyncIOMotorClient(config.MONGO_URL)
 db = client[config.DATABASE_NAME]
-instance = Instance(db)
+
+# Sahi Tareeka: umongo.frameworks.Motor se initialize karein
+instance = Motor(db) 
+# ---------------------------
 
 # --- 1. Database Structure (Schema) ---
 @instance.register
@@ -65,7 +71,8 @@ async def save_file(media):
             file_type=file_type,
             mime_type=mime_type,
             caption=caption,
-            # Note: chat_id aur message_id index.py se pass honge agar zaroorat ho
+            chat_id=getattr(media, "chat_id", None), # Added default safe access
+            message_id=getattr(media, "message_id", None) # Added default safe access
         )
 
         # 4. Database mein Commit karna
@@ -93,12 +100,16 @@ async def get_search_results(query, max_results=10, offset=0, lang_code=None):
 
     # Regex banana (Case Insensitive Search)
     # User ne "matrix" likha to "The Matrix", "Matrix Reloaded" sab match hoga
+    # re.escape se special characters sahi handle honge
     regex = re.compile(f".*{re.escape(query)}.*", re.IGNORECASE)
 
     # Database Filter Query
     if config.USE_CAPTION_FILTER: # Config se check karein
         filter_criteria = {
             '$or': [
+                # MongoDB Text Indexing ($file_name) is usually faster for full text search
+                # But PyMongo uses standard Regex filters if not using the $text operator explicitly.
+                # Regex Filter:
                 {'file_name': regex},
                 {'caption': regex}
             ]
