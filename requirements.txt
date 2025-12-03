@@ -1,4 +1,4 @@
-pyrogram
-tgcrypto
-motor
-dnspython
+pyrogram>=2.0.106 # Pyrogram ka latest stable version, jismein iter_messages function available hai.
+tgcrypto          # Pyrogram ke liye zaroori
+motor             # MongoDB asynchronous driver
+dnspython         # MongoDB connection ke liye zaroori (SRV record support)
