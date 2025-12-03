@@ -1,136 +1,113 @@
-import logging
+# bot.py
 import asyncio
-from pyrogram import Client, filters, idle, enums
-from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from pyrogram import Client, filters
+from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, Message, CallbackQuery
+from motor.motor_asyncio import AsyncIOMotorClient
+from config import Config
 
-# Configuration
-import config
-# Database handlers (Connection is handled inside ia_filter.py using Motor/umongo)
-import database.ia_filter as db_filter 
+# --- Database Setup (MongoDB) ---
+mongo_client = AsyncIOMotorClient(Config.DB_URI)
+db = mongo_client["MyTelegramBotDB"] # Database ka naam
+groups_collection = db["groups"]     # Collection jahan groups save honge
 
-# Logging setup
-logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.INFO
-)
-logger = logging.getLogger(__name__)
-
-# --- Client Initialization ---
+# --- Bot Client Setup ---
 app = Client(
-    "your_bot_session",
-    api_id=config.API_ID,
-    api_hash=config.API_HASH,
-    bot_token=config.BOT_TOKEN,
-    # Plugins folder load karein: index.py ab automatically load ho jayega
-    plugins=dict(root="plugins") 
+    "my_bot",
+    api_id=Config.API_ID,
+    api_hash=Config.API_HASH,
+    bot_token=Config.BOT_TOKEN
 )
 
-# --- Handlers (Pyrogram Style) ---
+# --- Helper Function: Save Group to DB ---
+async def add_group_to_db(group_id, group_name, added_by_user_id):
+    # Upsert logic: Agar group pehle se hai to update karega, nahi to naya banayega
+    await groups_collection.update_one(
+        {"_id": group_id},
+        {
+            "$set": {
+                "group_name": group_name,
+                "added_by": added_by_user_id,
+                "is_active": True
+            }
+        },
+        upsert=True
+    )
+    print(f"Saved Group: {group_name} ({group_id})")
 
+# --- 1. /start Command Handler ---
 @app.on_message(filters.command("start") & filters.private)
-async def start_command(client, message):
-    """
-    /start command aane par yeh function chalega.
-    """
-    bot_username = client.me.username # Pyrogram mein client.me se bot ki details milti hain
+async def start_command(client: Client, message: Message):
+    # Bot ka username fetch karte hain taaki 'Add me' link ban sake
+    bot_info = await client.get_me()
+    bot_username = bot_info.username
     
-    keyboard = [
+    # Buttons Create karna
+    buttons = InlineKeyboardMarkup([
         [
+            # ➕ Add me to your groups
             InlineKeyboardButton(
-                "➕ Add me to your groups", 
+                text="➕ Add me to your groups",
                 url=f"https://t.me/{bot_username}?startgroup=true"
             )
         ],
         [
-            InlineKeyboardButton("📢 Main Channel", url=config.CHANNEL_LINK),
-            InlineKeyboardButton("👤 Bot Owner", url=config.OWNER_LINK)
+            # 📣 Main Channel
+            InlineKeyboardButton(
+                text="📣 Main Channel",
+                url=Config.CHANNEL_LINK
+            ),
+            # 🧑‍💻 Bot Owner
+            InlineKeyboardButton(
+                text="🧑‍💻 Bot Owner",
+                url=Config.OWNER_LINK
+            )
         ],
         [
-            InlineKeyboardButton("ℹ️ About", callback_data="about_section")
+            # ℹ️ About
+            InlineKeyboardButton(
+                text="ℹ️ About",
+                callback_data="about_info"
+            )
         ]
-    ]
-    
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
+    ])
+
     await message.reply_text(
-        f"👋 Namaste {message.from_user.first_name}!\n\n"
-        "Main ek advanced Python bot hoon. Neeche diye gaye buttons use karein:",
-        reply_markup=reply_markup,
-        parse_mode=enums.ParseMode.MARKDOWN
+        text=f"👋 Hello {message.from_user.first_name}!\n\nMain ek advanced group management bot hoon. Neeche diye gaye buttons use karein.",
+        reply_markup=buttons
     )
 
-@app.on_callback_query()
-async def button_handler(client, query):
-    """
-    Callback button handler.
-    """
-    await query.answer()
+# --- 2. Callback Handler (About Button) ---
+@app.on_callback_query(filters.regex("about_info"))
+async def about_callback(client: Client, callback_query: CallbackQuery):
+    info_text = (
+        "**🤖 Bot Information**\n\n"
+        "Version: 1.0\n"
+        "Framework: Pyrogram & MongoDB\n"
+        "Feature: Group Tracking System\n\n"
+        "Yeh bot groups ko manage aur track karne ke liye banaya gaya hai."
+    )
+    await callback_query.answer(info_text, show_alert=True)
 
-    if query.data == "about_section":
-        await query.message.edit_text(
-            text=(
-                "ℹ️ **About This Bot**\n\n"
-                "Yeh bot Python aur MongoDB use karke banaya gaya hai.\n"
-                "Developer: Bot Owner Name\n"
-                "Library: Pyrogram v2+"
-            ),
-            parse_mode=enums.ParseMode.MARKDOWN,
-            # Same keyboard wapas bhejne ki zaroorat nahi hai
-        )
-    # Callback ko index handler mein forward karein (agar index.py mein yeh logic ho)
-    # NOTE: Pyrogram mein plugins automatically load ho jaate hain.
-    # index.py mein bhi @app.on_callback_query() handler hona chahiye.
-    elif query.data.startswith('index_'):
-        # Assuming index.py has its own callback handler.
-        # Agar aapko yahan se forward karna hai, toh index_handler mein function bana kar yahan call karein.
-        # Filhaal, hum rely karenge ki index.py apne aap handle karega.
-        pass
-
-# NOTE: Pyrogram mein ChatMemberUpdate ke liye filters.chat_member use hota hai
-@app.on_chat_member_updated(filters.group)
-async def track_group_additions(client, update):
-    """
-    Jab bhi bot kisi group mein add hoga ya uska status badlega.
-    """
-    # Check if the bot was added or status changed to admin/member
-    if update.new_chat_member and update.new_chat_member.user.is_self:
-        new_status = update.new_chat_member.status
-        
-        if new_status in [enums.ChatMemberStatus.ADMINISTRATOR, enums.ChatMemberStatus.MEMBER]:
-            chat_id = update.chat.id
-            chat_title = update.chat.title
+# --- 3. New Chat Members Handler (DB Saving Logic) ---
+# Jab bot kisi naye group mein add hota hai
+@app.on_message(filters.new_chat_members)
+async def on_new_chat_members(client: Client, message: Message):
+    bot_id = (await client.get_me()).id
+    
+    for member in message.new_chat_members:
+        # Check karein agar naya member khud BOT hai
+        if member.id == bot_id:
+            group_id = message.chat.id
+            group_name = message.chat.title
+            added_by = message.from_user.id if message.from_user else None
             
-            # Group data ko database mein save karne ka logic (Assuming db_filter handles it)
-            try:
-                # Assuming you have a function in db_filter for saving group info
-                # Is function ko db_filter mein define karna hoga.
-                # await db_filter.save_group(chat_id, chat_title) 
-                
-                logger.info(f"New Group Added: {chat_title} ({chat_id})")
-                await client.send_message(chat_id, "Thanks for adding me! Data saved to DB.")
-                
-            except Exception as e:
-                logger.error(f"Error saving group to MongoDB: {e}")
-                await client.send_message(chat_id, "⚠️ Error: Could not save group info to database.")
+            # Database mein save karein
+            await add_group_to_db(group_id, group_name, added_by)
+            
+            await message.reply_text(
+                f"Thanks for adding me to **{group_name}**!\nI have saved this group to my database."
+            )
 
-
-# --- Main Application ---
-async def main():
-    logger.info("Starting bot...")
-    
-    # Database initialization check (ia_filter mein hoga)
-    # yahan aap koi simple query chala kar connection check kar sakte hain.
-    
-    await app.start()
-    logger.info("Bot started successfully!")
-    
-    # Bot ko chalu rakhega
-    await idle() 
-
-    logger.info("Bot stopping...")
-    await app.stop()
-
-
-if __name__ == '__main__':
-    # Pyrogram aur asyncio ko run karein
-    asyncio.run(main())
+# --- Bot Run ---
+print("Bot Started...")
+app.run()
