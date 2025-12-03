@@ -27,7 +27,6 @@ db = client[config.DATABASE_NAME]
 
 # Sahi Initialization
 try:
-    instance = MotorAsyncIOMotorClient(db) # Correction in class name (already fixed, just ensuring)
     instance = MotorAsyncIOInstance(db) 
     logger.info("MongoDB Instance successfully initialized.")
 except TypeError as e:
