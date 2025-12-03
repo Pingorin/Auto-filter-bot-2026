@@ -1,7 +1,5 @@
-python-telegram-bot==21.0
-pyrogram==2.0.100
+pyrogram
 tgcrypto
 motor
-umongo==4.0.0
+umongo
 dnspython
-cryptography
