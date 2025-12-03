@@ -3,16 +3,21 @@
 import os
 
 class Config:
-    # my.telegram.org se milega
-    API_ID = 20638104  # Apna API ID yahan daalein (Integer)
-    API_HASH = "6c884690ca85d39a4c5ad7c15b194e42"  # Apna API HASH yahan daalein
+    # Saare credentials Heroku ke Config Vars/Environment se read honge
     
-    # BotFather se milega
-    BOT_TOKEN = "8504476517:AAHfyOVpPuWyWtgh-mY4Uh6zIoSK7J1CbkI" 
+    # API ID: Integer hona chahiye
+    # Note: os.environ.get() string deta hai, isliye int() mein wrap kiya hai.
+    API_ID = int(os.environ.get("API_ID", )) 
+    
+    # API HASH: String
+    API_HASH = os.environ.get("API_HASH", "")  
+    
+    # BOT TOKEN: String
+    BOT_TOKEN = os.environ.get("BOT_TOKEN", "") 
 
-    # MongoDB Connection String (MongoDB Atlas ya Localhost)
-    DB_URI = "mongodb+srv://Anu55:Anu55@cluster0.8ohtzju.mongodb.net/?retryWrites=true&w=majority"
+    # MongoDB Connection String: String
+    DB_URI = os.environ.get("DB_URI", "")
     
-    # Links
-    CHANNEL_LINK = "https://t.me/YourChannelUsername" 
-    OWNER_LINK = "https://t.me/jain_shabb" 
+    # Links: Yeh bhi environment se read kiye ja sakte hain
+    CHANNEL_LINK = os.environ.get("CHANNEL_LINK", "https://t.me/YourChannelUsername")
+    OWNER_LINK = os.environ.get("OWNER_LINK", "https://t.me/YourOwnerUsername")
