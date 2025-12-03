@@ -1,0 +1,1 @@
+python-3.10.12  # Ya koi bhi 3.10.x version
