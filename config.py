@@ -1,24 +1,18 @@
 # config.py
 
-# BotFather se mila hua token yahan dalein
-BOT_TOKEN = "8504476517:AAHfyOVpPuWyWtgh-mY4Uh6zIoSK7J1CbkI"
+import os
 
-# MongoDB connection url (MongoDB Atlas ya local)
-MONGO_URL = "mongodb+srv://Anu55:Anu55@cluster0.8ohtzju.mongodb.net/?retryWrites=true&w=majority"
+class Config:
+    # my.telegram.org se milega
+    API_ID = 20638104  # Apna API ID yahan daalein (Integer)
+    API_HASH = "6c884690ca85d39a4c5ad7c15b194e42"  # Apna API HASH yahan daalein
+    
+    # BotFather se milega
+    BOT_TOKEN = "8504476517:AAHfyOVpPuWyWtgh-mY4Uh6zIoSK7J1CbkI" 
 
-# Apne channel aur owner ka link (Agar zaroorat ho toh)
-CHANNEL_LINK = "https://t.me/YourChannelLink"
-OWNER_LINK = "https://t.me/YourUsername"
-
-# --- Bot Configuration ---
-# LOG_CHANNEL: Jaha indexing aur dusri requests aayengi (Channel ID -100 se shuru hota hai)
-LOG_CHANNEL = -1003474604893  
-
-# ADMINS: Jin users ko saare commands ka access hoga (List of User IDs)
-ADMINS = [7245547751] 
-
-# DATABASE_NAME: MongoDB ka naam jisme files store hongi
-DATABASE_NAME = "Cluster0" 
-
-# Filter Configuration (Abhi default False rakha hai)
-USE_CAPTION_FILTER = False
+    # MongoDB Connection String (MongoDB Atlas ya Localhost)
+    DB_URI = "mongodb+srv://Anu55:Anu55@cluster0.8ohtzju.mongodb.net/?retryWrites=true&w=majority"
+    
+    # Links
+    CHANNEL_LINK = "https://t.me/YourChannelUsername" 
+    OWNER_LINK = "https://t.me/jain_shabb" 
