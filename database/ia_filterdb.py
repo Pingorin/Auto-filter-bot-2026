@@ -1,117 +1,117 @@
-# database/ia_filterdb.py
-
+# database/ia_filterdb.py (Updated to fix ImportError)
 import re
 from motor.motor_asyncio import AsyncIOMotorClient
-# Note: Pyrogram 2.0+ mein file_id modules mein hai
-from pyrogram.file_id import FileId, FileType, unpack_file_id, pack_file_id 
-from config import Config
+# Note: unpack_file_id aur FileType ko Pyrogram ke latest versions se import nahi kiya ja sakta.
+# Hum file_ref seedhe media object se access karenge.
+from pyrogram.file_id import FileId 
+from config import Config 
 
-# --- MongoDB Connection ---
+# MongoDB Connection
 client = AsyncIOMotorClient(Config.DB_URI)
 db = client["IndexingBotDB"]
-files_collection = db["files"] 
-settings_collection = db["settings"] # Skip ID saving ke liye
+files_collection = db["files"]       # Main collection for indexed files
+settings_collection = db["settings"] # Collection for skip ID
 
-# --- 1. Database Index Setup (Important for Fast Search) ---
-async def setup_db_indexes():
-    """Ensures file_name and file_unique_id have indexes."""
-    try:
-        # 1. file_name index for fast searching (Text Indexing)
-        # Agar aap advanced search chahte hain, toh 'text' index banayein:
-        await files_collection.create_index(
-            [("file_name", "text")], 
-            name="file_name_search_index"
-        )
-        
-        # 2. file_unique_id index to prevent duplicates
-        await files_collection.create_index(
-            "file_unique_id", 
-            unique=True, 
-            name="file_unique_id_index"
-        )
-        print("MongoDB indexes created successfully.")
-    except Exception as e:
-        # Index creation sirf ek baar hona chahiye. Agar index pehle se ho to yeh error aayega.
-        if "Index with name" not in str(e) and "file_name_search_index" not in str(e):
-             print(f"Error creating MongoDB indexes: {e}")
-
-# --- Helper Function (Technical) ---
+# --- Helper Functions (Pyrogram File ID Handling) ---
 def get_file_details(media):
-    """Unpacks Pyrogram's file ID and extracts details."""
-    if not media:
-        return None
+    """Media object se file_reference aur file_type nikalna."""
+    
+    file_id_obj = FileId.decode(media.file_id)
+    
+    # file_ref (bytes) seedhe FileId object se mil jayega
+    file_ref = file_id_obj.file_reference
+    
+    # file_type nikalna (e.g., FileType.VIDEO.value)
+    # Pyrogram media object se file_type nikalne ka seedha tareeka.
+    if media.video:
+        file_type = "video"
+    elif media.audio:
+        file_type = "audio"
+    elif media.document:
+        file_type = "document"
+    else:
+        file_type = "unknown"
         
-    # Pyrogram 2.0+ mein unpack_file_id use hota hai
-    file_id_parts = unpack_file_id(media.file_id)
-    
-    # file_ref (bytes) is crucial for persistent storage
-    file_ref = file_id_parts.file_reference
-    
-    return {
-        "file_id": media.file_id,                      # Original ID
-        "file_unique_id": media.file_unique_id,        # Unique ID for duplicate check
-        "file_ref": file_ref,                          # Permanent File Reference (bytes)
-        "file_name": media.file_name,
-        "file_size": media.file_size,
-        "file_type": media.media.value,                # 'video', 'document', 'audio'
-        "caption": media.caption or ""                 # Caption ko empty string rakha hai
-    }
+    return file_ref, file_type
 
-# --- 2. save_file Function (Asli Saving) ---
-async def save_file(media):
-    details = get_file_details(media)
-    if not details:
+# --- 1. File Saving Function ---
+async def save_file(media, caption):
+    """Saves a file's details into the database, handles reference and cleaning."""
+    file_id = media.file_id
+    file_unique_id = media.file_unique_id
+    
+    # File ID Handling: file_ref aur file_type nikalna
+    file_ref, file_type = get_file_details(media)
+    
+    file_name = media.file_name if media.file_name else f"file_{file_unique_id}"
+    file_size = media.file_size
+
+    # --- Naam Saaf Karna (Clean) ---
+    cleaned_name = re.sub(r"(_|\-|\.|\+)", " ", file_name).strip().lower()
+    
+    # Check for duplicate using file_unique_id (unique index assume karte hue)
+    duplicate_check = await files_collection.find_one({"file_unique_id": file_unique_id})
+    if duplicate_check:
+        return 'duplicate'
+
+    # Prepare data based on Media Schema
+    data = {
+        "file_id": file_id, 
+        "file_ref": file_ref, # Permanent File Reference (bytes format)
+        "file_unique_id": file_unique_id, # Duplicate check ke liye
+        "file_name": file_name, 
+        "file_size": file_size,
+        "file_type": file_type, 
+        "caption": caption, 
+        "cleaned_name": cleaned_name, 
+    }
+    
+    try:
+        await files_collection.insert_one(data)
+        return 'success'
+    except Exception as e:
+        if "DuplicateKeyError" in str(e): 
+             return 'duplicate'
+        print(f"Error saving file: {e}")
         return 'error'
 
-    # Clean Name Logic: Replace common separators with space for better search
-    # Yeh cleaning Text Index ke saath use karne ke liye zaroori nahi,
-    # lekin Regex search ke liye faydemand hai.
-    clean_name = re.sub(r"(_|\-|\.|\+)", " ", details['file_name']).lower().strip()
-    details['clean_name'] = clean_name # Nayi field for efficient search (optional)
+# --- 2. Skip ID Functions ---
+async def get_current_skip_id():
+    setting = await settings_collection.find_one({"_id": "skip_id"})
+    return setting.get("value", Config.DEFAULT_SKIP_ID) if setting else Config.DEFAULT_SKIP_ID
 
-    # 1. Duplicate Check & Commit
-    try:
-        # Insert with file_unique_id index applied
-        await files_collection.insert_one(details)
-        return 'success'
-
-    except Exception as e:
-        if 'E11000 duplicate key' in str(e): # MongoDB DuplicateKeyError code
-            return 'duplicate'
-        else:
-            print(f"Database insertion error: {e}")
-            return 'error'
+async def set_new_skip_id(new_id):
+    await settings_collection.update_one(
+        {"_id": "skip_id"},
+        {"$set": {"value": new_id}},
+        upsert=True
+    )
 
 # --- 3. get_search_results Function (Searching) ---
 async def get_search_results(query: str, file_type: str = None, max_results: int = 10, offset: int = 0):
+    """Searches the database using Regex."""
     
-    # --- Search Query Filtering ---
-    # User ki query ko search-friendly banana. (.*?) wildcard ki tarah kaam karta hai.
-    query_regex = re.escape(query).replace(" ", ".*?") 
+    search_query = re.sub(r"(_|\-|\.|\+)", " ", query).strip().lower()
     
-    # Base Filter (Case-insensitive search in file_name)
-    filter_query = {
-        "file_name": {"$regex": query_regex, "$options": "i"} 
-    }
+    query_filter = {}
+    
+    # Regex pattern: Case-Insensitive search
+    regex_pattern = re.compile(f".*{re.escape(search_query)}.*", re.IGNORECASE)
+    
+    search_fields = [{"cleaned_name": regex_pattern}]
+    
+    # Check if caption filter is configured and should be included in search
+    # Assuming Config.USE_CAPTION_FILTER is a boolean in config.py
+    if getattr(Config, 'USE_CAPTION_FILTER', False):
+         search_fields.append({"caption": regex_pattern})
+         
+    query_filter["$or"] = search_fields
 
     # Optional: File Type Filter
     if file_type:
-        filter_query["file_type"] = file_type
-        
-    # Agar aap Text Index use kar rahe hain, toh aap seedha yeh use kar sakte hain (Zyada efficient):
-    # filter_query = {"$text": {"$search": query}} 
-    
-    
-    cursor = files_collection.find(filter_query).sort("_id", 1).skip(offset).limit(max_results)
-    
+        query_filter["file_type"] = file_type
+
+    cursor = files_collection.find(query_filter).skip(offset).limit(max_results)
     results = await cursor.to_list(length=max_results)
-    total_count = await files_collection.count_documents(filter_query)
     
-    # 
-    
-    return results, total_count
-
-# --- Skip ID Functions (For Indexing Progress) ---
-# Skip ID ko database mein save/get karne ke liye (same as previous)
-# ... (get_current_skip_id, set_new_skip_id functions yahan aayenge)
-
+    return results
