@@ -1,22 +1,21 @@
 # Dockerfile
 
-# Base Image: Python ki light-weight image use karenge
-FROM python:3.10-slim
+# Base Image: Python ki latest stable version ka upyog
+FROM python:3.11-slim
 
-# Working directory set karte hain
-WORKDIR /app
+# Working Directory set karna
+WORKDIR /usr/src/app
 
-# Requirements file ko container mein copy karte hain
+# requirements.txt file ko container mein copy karna
 COPY requirements.txt .
 
-# Dependencies install karte hain
+# Dependencies install karna
+# --no-cache-dir: Disk space aur build time bachane ke liye
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Baaki saara code copy karte hain
+# Baaki saara code (bot.py aur config.py) ko container mein copy karna
 COPY . .
 
-# Bot ko run karne ka command:
-# CMD [ "python", "bot.py" ]
-# Lekin Railway/Render mein hum CMD ki jagah seedha Start Command denge.
-# Hum yahan sirf entry point define karte hain.
-ENTRYPOINT [ "python", "bot.py" ]
+# Bot ko run karne ke liye default command.
+# CMD command Docker container shuru hone par run hoti hai.
+CMD ["python", "bot.py"]
