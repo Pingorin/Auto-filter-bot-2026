@@ -1,11 +1,7 @@
-# For Telegram Bot API:
-python-telegram-bot  <-- Yeh zaroori hai is error ko theek karne ke liye
-
-# For Indexing/Advanced features (Pyrogram):
-pyrogram
+# Latest Stable versions use karein
+python-telegram-bot==21.0
+pyrogram==2.0.100  # Ya jo version aap use kar rahe hain
 tgcrypto
-
-# For MongoDB:
 motor
 umongo
 dnspython
