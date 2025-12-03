@@ -1,0 +1,32 @@
+# render.yaml
+
+# Build process ka version
+version: "1" 
+
+# Services ki list (yahan sirf hamara bot hai)
+services:
+  - type: worker        # Bot ek background worker hai, web service nahi
+    name: telegram-bot
+    plan: starter       # Aap apni zaroorat ke hisaab se plan badal sakte hain
+    # Docker use kar rahe hain
+    buildCommand: ""    # Jab Dockerfile use ho raha ho, toh build command khaali rakhte hain
+    # Dockerfile ka path
+    dockerfilePath: Dockerfile 
+    # Dockerfile jis directory mein hai
+    dockerContext: .    
+    
+    # Environment Variables (Secrets) ka zikr yahan hota hai, 
+    # magar values Render dashboard mein set honi chahiye.
+    envVars:
+      - key: API_ID
+        sync: false     # Secure variable, dashboard se manage hoga
+      - key: API_HASH
+        sync: false
+      - key: BOT_TOKEN
+        sync: false
+      - key: DB_URI
+        sync: false
+      - key: CHANNEL_LINK
+        sync: false
+      - key: OWNER_LINK
+        sync: false
