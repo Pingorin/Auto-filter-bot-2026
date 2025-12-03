@@ -1,4 +1,7 @@
-pyrogram>=2.0.106 # Pyrogram ka latest stable version, jismein iter_messages function available hai.
-tgcrypto          # Pyrogram ke liye zaroori
-motor             # MongoDB asynchronous driver
-dnspython         # MongoDB connection ke liye zaroori (SRV record support)
+pyrogram>=2.0.106 # Pyrogram ka naya version iter_messages ke liye.
+tgcrypto          # Pyrogram encryption ke liye zaroori.
+​MongoDB (Atlas) Asynchronous Driver
+​motor             # Asynchronous MongoDB driver.
+dnspython         # SRV record support (MongoDB Atlas connection ke liye).
+​Database Schema/ORM
+​umongo==3.0.1     # Document schema aur structure define karne ke liye.
