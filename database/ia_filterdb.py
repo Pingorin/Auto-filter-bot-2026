@@ -1,7 +1,7 @@
-# database/ia_filterdb.py (Fixed: Removed incorrect 'set_motor_backend' import/call)
+# database/ia_filterdb.py (Fix: Umongo ImportError and AttributeError)
 import re
 from motor.motor_asyncio import AsyncIOMotorClient
-# umongo se ab sirf zaroori cheezein import karenge (set_motor_backend hata diya gaya hai)
+# set_motor_backend ko hata diya gaya hai
 from umongo import Document, fields 
 from umongo.frameworks import MotorAsyncIOInstance
 from pyrogram.file_id import FileId 
@@ -12,7 +12,6 @@ from config import Config
 client = AsyncIOMotorClient(Config.DB_URI)
 db = client["IndexingBotDB"]
 # MotorAsyncIOInstance ko db ke saath initialize karna.
-# Ismein set_motor_backend ki zaroorat nahi hai (umongo internally handle karta hai).
 instance = MotorAsyncIOInstance(db) 
 
 # --- Document Schema Definition using umongo ---
@@ -24,16 +23,18 @@ class Media(Document):
     """
     # 1. Primary Fields
     file_id = fields.StrField(required=True)
-    file_unique_id = fields.StrField(required=True, unique=True) # Duplicate check ke liye
-    file_ref = fields.BinaryField(required=True) # Permanent File Reference (bytes format)
+    file_unique_id = fields.StrField(required=True, unique=True)
+    file_ref = fields.BinaryField(required=True)
     
     # 2. Metadata Fields
     file_name = fields.StrField(required=True)
     file_size = fields.IntField(required=True)
-    file_type = fields.StrField(required=True) # 'video', 'audio', 'document'
-    caption = fields.StrField(default="")
+    file_type = fields.StrField(required=True)
     
-    # 3. Search Index Field
+    # 3. FIX: default="" parameter hata diya gaya hai (jiske karan AttributeError aa raha tha)
+    caption = fields.StrField() 
+    
+    # 4. Search Index Field
     cleaned_name = fields.StrField(required=True)
     
     class Meta:
@@ -88,6 +89,7 @@ async def save_file(media, caption):
         file_name=file_name,
         file_size=file_size,
         file_type=file_type,
+        # caption="" hai, aur ab umongo schema isko bina default ke accept karega
         caption=caption,
         cleaned_name=cleaned_name,
     )
