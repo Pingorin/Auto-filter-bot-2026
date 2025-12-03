@@ -1,6 +1,6 @@
-python-telegram-bot
-pymongo
-umongo
+pyrogram
+tgcrypto
 motor
-pymongo
+umongo
 dnspython
+# Add other dependencies like python-dotenv, etc.
