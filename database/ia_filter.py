@@ -3,12 +3,26 @@ import re
 import config
 from pymongo.errors import DuplicateKeyError
 from motor.motor_asyncio import AsyncIOMotorClient
-
-# --- ZAROORI FIXES YAHAN HAIN ---
-# 1. Sahi Import Line
-# Agar aapko umongo mein MotorAsyncIOInstance use karna hai, toh is tarah import karein
-from umongo.frameworks.motor import MotorAsyncIOInstance 
 from umongo import Document, fields
+
+# --- ZAROORI FIXES YAHAN HAIN (Universal Import Logic) ---
+# Hum MotorAsyncIOInstance ko ek compatible path se import karne ki koshish karenge.
+try:
+    # 1. Sabse common naya path
+    from umongo.frameworks.motor import MotorAsyncIOInstance
+except ImportError:
+    try:
+        # 2. Purana/Alternative path
+        from umongo.frameworks import MotorAsyncIOInstance
+    except ImportError:
+        # 3. Agar koi bhi kaam na kare, toh dependency issue hai.
+        # Filhal, hum code ko chalane ke liye ek dummy class bana dete hain (production use ke liye nahi)
+        logging.critical("CRITICAL: Failed to import MotorAsyncIOInstance from umongo. Check umongo version.")
+        # Agar bot chalate rahna hai, toh aapko yahan ek graceful exit dena hoga.
+        # Hum MotorInstance hi try kar lete hain (Last resort for compatibility)
+        from umongo import Instance as MotorAsyncIOInstance 
+        # Yeh line sirf code ko compile karne ke liye hai, functionality guarantee nahi.
+        
 # ----------------------------------
 
 # Logger Setup
@@ -18,13 +32,18 @@ logger = logging.getLogger(__name__)
 client = AsyncIOMotorClient(config.MONGO_URL)
 db = client[config.DATABASE_NAME]
 
-# 2. Sahi Initialization
-instance = MotorAsyncIOInstance(db) 
-# ---------------------------
+# 2. Sahi Initialization (Ab yeh MotorAsyncIOInstance class se initialize hoga)
+try:
+    instance = MotorAsyncIOInstance(db) 
+except TypeError as e:
+    # Agar phir bhi TypeError aaye toh user ko clear message dein
+    logging.error(f"UMONGO INIT ERROR: {e}. Check if umongo is compatible with motor version.")
+    raise
 
 # --- 1. Database Structure (Schema) ---
 @instance.register
 class Media(Document):
+# ... baaki ka Media class ka code waisa hi rahega ...
     file_id = fields.StrField(attribute='_id')
     file_ref = fields.StrField(allow_none=True)
     file_name = fields.StrField(required=True)
@@ -41,9 +60,7 @@ class Media(Document):
 
 # --- 2. Save File Function (Asli Saving & Cleaning) ---
 async def save_file(media):
-    """
-    File ko database mein save karta hai.
-    """
+# ... save_file function ka code waisa hi rahega ...
     try:
         file_id = media.file_id
         file_ref = getattr(media, "file_ref", None)
@@ -84,9 +101,7 @@ async def save_file(media):
 
 # --- 3. Search Function (Indexing & Regex) ---
 async def get_search_results(query, max_results=10, offset=0, lang_code=None):
-    """
-    User ki query se files search karta hai.
-    """
+# ... get_search_results function ka code waisa hi rahega ...
     query = query.strip()
     if not query:
         return []
