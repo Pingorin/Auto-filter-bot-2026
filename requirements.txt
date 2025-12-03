@@ -1,6 +1,11 @@
+# For Telegram Bot API:
+python-telegram-bot  <-- Yeh zaroori hai is error ko theek karne ke liye
+
+# For Indexing/Advanced features (Pyrogram):
 pyrogram
 tgcrypto
+
+# For MongoDB:
 motor
 umongo
 dnspython
-# Add other dependencies like python-dotenv, etc.
