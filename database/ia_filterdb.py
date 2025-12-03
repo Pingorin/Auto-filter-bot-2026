@@ -1,8 +1,6 @@
 # database/ia_filterdb.py (Updated to fix ImportError)
 import re
 from motor.motor_asyncio import AsyncIOMotorClient
-# Note: unpack_file_id aur FileType ko Pyrogram ke latest versions se import nahi kiya ja sakta.
-# Hum file_ref seedhe media object se access karenge.
 from pyrogram.file_id import FileId 
 from config import Config 
 
@@ -16,18 +14,23 @@ settings_collection = db["settings"] # Collection for skip ID
 def get_file_details(media):
     """Media object se file_reference aur file_type nikalna."""
     
-    file_id_obj = FileId.decode(media.file_id)
+    # Check if media object is valid and has a file_id
+    if not hasattr(media, 'file_id') or not media.file_id:
+        return None, "unknown"
+
+    try:
+        file_id_obj = FileId.decode(media.file_id)
+        file_ref = file_id_obj.file_reference
+    except Exception:
+        # Agar decode fail ho, toh file_ref ko None set karein
+        file_ref = None
     
-    # file_ref (bytes) seedhe FileId object se mil jayega
-    file_ref = file_id_obj.file_reference
-    
-    # file_type nikalna (e.g., FileType.VIDEO.value)
-    # Pyrogram media object se file_type nikalne ka seedha tareeka.
-    if media.video:
+    # File Type nikalna
+    if hasattr(media, 'video') and media.video:
         file_type = "video"
-    elif media.audio:
+    elif hasattr(media, 'audio') and media.audio:
         file_type = "audio"
-    elif media.document:
+    elif hasattr(media, 'document') and media.document:
         file_type = "document"
     else:
         file_type = "unknown"
@@ -78,6 +81,7 @@ async def save_file(media, caption):
 # --- 2. Skip ID Functions ---
 async def get_current_skip_id():
     setting = await settings_collection.find_one({"_id": "skip_id"})
+    # client.DEFAULT_SKIP_ID config se aayega
     return setting.get("value", Config.DEFAULT_SKIP_ID) if setting else Config.DEFAULT_SKIP_ID
 
 async def set_new_skip_id(new_id):
@@ -101,7 +105,6 @@ async def get_search_results(query: str, file_type: str = None, max_results: int
     search_fields = [{"cleaned_name": regex_pattern}]
     
     # Check if caption filter is configured and should be included in search
-    # Assuming Config.USE_CAPTION_FILTER is a boolean in config.py
     if getattr(Config, 'USE_CAPTION_FILTER', False):
          search_fields.append({"caption": regex_pattern})
          
