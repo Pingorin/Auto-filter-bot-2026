@@ -6,9 +6,12 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from umongo import Document, fields
 import sys
 
-# Logger Setup...
+# Logger Setup
+logger = logging.getLogger(__name__) # <-- FIXED: Logger initialized here
 
-# UMONGO/MOTOR INSTANCE IMPORT LOGIC (pichla fix)
+# ######################################################
+# ### UNIVERSAL UMONGO/MOTOR INSTANCE IMPORT LOGIC ###
+# ######################################################
 try:
     from umongo.frameworks.motor import MotorAsyncIOInstance
 except ImportError:
@@ -24,6 +27,7 @@ db = client[config.DATABASE_NAME]
 
 # Sahi Initialization
 try:
+    instance = MotorAsyncIOMotorClient(db) # Correction in class name (already fixed, just ensuring)
     instance = MotorAsyncIOInstance(db) 
     logger.info("MongoDB Instance successfully initialized.")
 except TypeError as e:
@@ -35,14 +39,10 @@ except TypeError as e:
 # --- 1. Database Structure (Schema) ---
 @instance.register
 class Media(Document):
-    # FIX: '_id' ko primary key bana diya. Ispe 'required=True' theek kaam karta hai.
     _id = fields.StrField(required=True) 
-    
-    # file_unique_id ko required=True se hataya taaki AttributeError na aaye
     file_unique_id = fields.StrField() 
-    
     file_ref = fields.StrField(allow_none=True)
-    file_name = fields.StrField(required=True) # Isko filhal rakhte hain
+    file_name = fields.StrField(required=True)
     file_size = fields.IntField(required=True)
     file_type = fields.StrField(allow_none=True)
     mime_type = fields.StrField(allow_none=True)
@@ -58,23 +58,19 @@ class Media(Document):
 # --- 2. Save File Function (Asli Saving & Cleaning) ---
 async def save_file(media):
     """File ko database mein save karta hai"""
-    file_id = media.file_id # Telegram se aaya hua file_id
+    file_id = media.file_id
 
     try:
-        # Check if file already exists using _id (jo file_id hai)
         file = await Media.find_one({'_id': file_id})
         if file:
             return 'duplicate', 0
 
-        # --- Data Cleaning and Preparation ---
-        # ... (cleaning logic remains same)
         file_ref = getattr(media, "file_ref", None)
         original_name = getattr(media, "file_name", "")
         if not original_name and media.caption:
             original_name = media.caption.splitlines()[0]
         clean_name = re.sub(r"(_|\-|\.|\+)", " ", original_name).strip()
 
-        # Media Object creation and commit
         media_file = Media(
             _id=file_id, 
             file_unique_id=file_id, 
@@ -99,7 +95,6 @@ async def save_file(media):
         return 'error', e
 
 # --- 3. Search Function (Indexing & Regex) ---
-# ... (Remains the same)
 async def get_search_results(query, max_results=10, offset=0, lang_code=None):
     """User ki query se files search karta hai."""
     query = query.strip()
