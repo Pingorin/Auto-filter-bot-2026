@@ -1,24 +1,71 @@
 from pyrogram import Client, filters
-from pyrogram.types import Message
+from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
 
 # लोकल फ़ाइलें आयात करें
 from config import Config
 from database.ia_filterdb import media_collection, get_available_qualities, get_available_years
-
-# index.py से admin helper फ़ंक्शन आयात करें
+from bot import LOGGER, app # bot.py से app और LOGGER को आयात करें
 from plugins.index import is_admin 
 
-# --- /start Command Handler (हटा दिया गया) ---
-# NOTE: /start command handler को bot.py में रखा गया है ताकि बटन दिखाई दें। 
-#       यहाँ से इसे हटाने पर कॉन्फ़्लिक्ट खत्म हो जाएगा।
-#
-# @Client.on_message(filters.command("start") & filters.private)
-# async def start_handler(client: Client, message: Message):
-#     """स्टार्ट कमांड का जवाब देता है।"""
-#     ... (यह कोड हटाया गया है)
+# --- 1. /start Command Handler (अब यहाँ है) ---
+@Client.on_message(filters.command("start") & filters.private)
+async def start_handler(client: Client, message: Message):
+    """स्टार्ट कमांड का जवाब देता है और बटन दिखाता है।"""
+    
+    # DEBUGGING LOG: संदेश प्राप्ति की पुष्टि
+    user_name = message.from_user.first_name if message.from_user else "Unknown"
+    LOGGER.info(f"'/start' command received from user: {message.from_user.id} ({user_name}) in command.py")
+    
+    try:
+        # बॉट की जानकारी app client से प्राप्त करें
+        bot_info = await app.get_me()
+        bot_username = bot_info.username
+        
+        # Buttons Create karna
+        buttons = InlineKeyboardMarkup([
+            [
+                # ➕ Add me to your groups
+                InlineKeyboardButton(
+                    text="➕ Add me to your groups",
+                    url=f"https://t.me/{bot_username}?startgroup=true"
+                )
+            ],
+            [
+                # 📣 Main Channel (Config.CHANNEL_LINK आवश्यक)
+                InlineKeyboardButton(
+                    text="📣 Main Channel",
+                    url=Config.CHANNEL_LINK
+                ),
+                # 🧑‍💻 Bot Owner (Config.OWNER_LINK आवश्यक)
+                InlineKeyboardButton(
+                    text="🧑‍💻 Bot Owner",
+                    url=Config.OWNER_LINK
+                )
+            ],
+            [
+                # ℹ️ About
+                InlineKeyboardButton(
+                    text="ℹ️ About",
+                    callback_data="about_info" # यह callback bot.py में हैंडल होगा
+                )
+            ]
+        ])
+
+        await message.reply_text(
+            text=f"👋 Hello {message.from_user.first_name}!\n\nMain ek advanced group management bot hoon. Neeche diye gaye buttons use karein.",
+            reply_markup=buttons
+        )
+        LOGGER.info(f"Successfully sent /start response to {user_name} from command.py.")
+
+    except Exception as e:
+        LOGGER.error(f"❌ ERROR in /start handler in command.py for user {message.from_user.id}: {e}")
+        try:
+            await message.reply_text(f"🚨 कमांड निष्पादित करने में आंतरिक त्रुटि आई: {e}")
+        except:
+            pass
 
 
-# --- 1. /total_files Command Handler (Admin) ---
+# --- 2. /total_files Command Handler (Admin) ---
 @Client.on_message(filters.command("total_files") & filters.private)
 async def total_files_handler(client: Client, message: Message):
     """एडमिन को डेटाबेस में इंडेक्स की गई फ़ाइलों की कुल संख्या दिखाता है।"""
@@ -44,7 +91,7 @@ async def total_files_handler(client: Client, message: Message):
         await message.reply_text(f"❌ सांख्यिकी प्राप्त करने में त्रुटि आई: {e}")
 
 
-# --- 2. /filters Command Handler (General/Admin) ---
+# --- 3. /filters Command Handler (General/Admin) ---
 @Client.on_message(filters.command("filters") & filters.private)
 async def filters_handler(client: Client, message: Message):
     """उपलब्ध फ़िल्टरिंग विकल्प (जैसे Quality, Year) दिखाता है।"""
