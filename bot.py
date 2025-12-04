@@ -44,11 +44,9 @@ async def add_group_to_db(group_id, group_name, added_by_user_id):
     )
     LOGGER.info(f"Saved Group: {group_name} ({group_id})")
 
-# --- 1. /start Command Handler Removed from here ---
-# /start handler को अब plugins/command.py में शिफ्ट कर दिया गया है।
+# --- 1. /start Command Handler Removed from here (Now in plugins/command.py) ---
 
 # --- 2. Callback Handler (About Button) ---
-# NOTE: यह callback handler bot.py में ही रहेगा क्योंकि यह सीधे main bot client से जुड़ा है।
 @app.on_callback_query(filters.regex("about_info"))
 async def about_callback(client: Client, callback_query: CallbackQuery):
     """'About' बटन के लिए जानकारी दिखाता है।"""
@@ -86,19 +84,28 @@ async def main():
     """बॉट को शुरू करता है और Pyrogram idle() पर रखता है।"""
     LOGGER.info("Starting Telegram Bot...")
     
-    # 1. बॉट क्लाइंट शुरू करें
-    await app.start()
-    
-    # 2. बॉट की जानकारी प्राप्त करें
-    bot_info = await app.get_me()
-    LOGGER.info(f"Bot Started as @{bot_info.username}")
-    
-    # 3. बॉट को तब तक चलने दें जब तक कि वह idle न हो
-    await idle()
-    
-    # 4. बॉट क्लाइंट बंद करें
-    await app.stop()
-    LOGGER.info("Bot stopped.")
+    try:
+        # 1. बॉट क्लाइंट शुरू करें
+        await app.start()
+        
+        # 2. बॉट की जानकारी प्राप्त करें
+        # अगर क्रेडेंशियल ग़लत हैं, तो यह यहीं क्रैश हो जाएगा।
+        bot_info = await app.get_me()
+        LOGGER.info(f"Bot Started successfully as @{bot_info.username}")
+        
+        # 3. बॉट को तब तक चलने दें जब तक कि वह idle न हो
+        # यह लाइन पुष्टि करती है कि बॉट मैसेज सुनने के लिए तैयार है।
+        LOGGER.info("Bot is now listening for messages in the idle loop.")
+        await idle()
+        
+        # 4. बॉट क्लाइंट बंद करें
+        await app.stop()
+        LOGGER.info("Bot stopped.")
+        
+    except Exception as e:
+        # 🚨 FATAL ERROR CHECK: किसी भी स्टार्टअप या क्रेडेंशियल त्रुटि को पकड़ें।
+        LOGGER.error(f"FATAL ERROR: Bot failed to start or connect to Telegram. Check API_ID/API_HASH/BOT_TOKEN. Error: {e}")
+
 
 # Pyrogram 2.0+ के लिए asyncio.run() का उपयोग करें
 if __name__ == "__main__":
