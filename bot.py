@@ -4,6 +4,7 @@ from pyrogram import Client, filters, idle
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, Message, CallbackQuery
 from motor.motor_asyncio import AsyncIOMotorClient
 from config import Config
+import plugins.command # command.py को यहाँ इंपोर्ट करें
 
 # लॉगिंग सेटअप
 logging.basicConfig(
@@ -43,54 +44,11 @@ async def add_group_to_db(group_id, group_name, added_by_user_id):
     )
     LOGGER.info(f"Saved Group: {group_name} ({group_id})")
 
-# --- 1. /start Command Handler ---
-@app.on_message(filters.command("start") & filters.private)
-async def start_command(client: Client, message: Message):
-    """स्टार्ट कमांड का जवाब देता है और बटन दिखाता है।"""
-    
-    # 🚨 DEBUGGING LOG: यह लाइन हमें बताएगी कि संदेश प्राप्त हुआ है या नहीं।
-    user_name = message.from_user.first_name if message.from_user else "Unknown"
-    LOGGER.info(f"'/start' command received from user: {message.from_user.id} ({user_name})")
-    
-    bot_info = await client.get_me()
-    bot_username = bot_info.username
-    
-    # Buttons Create karna
-    buttons = InlineKeyboardMarkup([
-        [
-            # ➕ Add me to your groups
-            InlineKeyboardButton(
-                text="➕ Add me to your groups",
-                url=f"https://t.me/{bot_username}?startgroup=true"
-            )
-        ],
-        [
-            # 📣 Main Channel (Config.CHANNEL_LINK आवश्यक)
-            InlineKeyboardButton(
-                text="📣 Main Channel",
-                url=Config.CHANNEL_LINK
-            ),
-            # 🧑‍💻 Bot Owner (Config.OWNER_LINK आवश्यक)
-            InlineKeyboardButton(
-                text="🧑‍💻 Bot Owner",
-                url=Config.OWNER_LINK
-            )
-        ],
-        [
-            # ℹ️ About
-            InlineKeyboardButton(
-                text="ℹ️ About",
-                callback_data="about_info"
-            )
-        ]
-    ])
-
-    await message.reply_text(
-        text=f"👋 Hello {message.from_user.first_name}!\n\nMain ek advanced group management bot hoon. Neeche diye gaye buttons use karein.",
-        reply_markup=buttons
-    )
+# --- 1. /start Command Handler Removed from here ---
+# /start handler को अब plugins/command.py में शिफ्ट कर दिया गया है।
 
 # --- 2. Callback Handler (About Button) ---
+# NOTE: यह callback handler bot.py में ही रहेगा क्योंकि यह सीधे main bot client से जुड़ा है।
 @app.on_callback_query(filters.regex("about_info"))
 async def about_callback(client: Client, callback_query: CallbackQuery):
     """'About' बटन के लिए जानकारी दिखाता है।"""
@@ -101,6 +59,7 @@ async def about_callback(client: Client, callback_query: CallbackQuery):
         "Feature: Group Tracking System\n\n"
         "Yeh bot groups ko manage aur track karne ke liye banaya gaya hai."
     )
+    # यदि आप इसे एक popup (alert) में नहीं दिखाना चाहते हैं, तो show_alert=True हटा दें
     await callback_query.answer(info_text, show_alert=True)
 
 # --- 3. New Chat Members Handler (DB Saving Logic) ---
