@@ -8,18 +8,17 @@ from database.ia_filterdb import media_collection, get_available_qualities, get_
 # index.py से admin helper फ़ंक्शन आयात करें
 from plugins.index import is_admin 
 
-# --- 1. /start Command Handler ---
-@Client.on_message(filters.command("start") & filters.private)
-async def start_handler(client: Client, message: Message):
-    """स्टार्ट कमांड का जवाब देता है।"""
-    user = message.from_user
-    await message.reply_text(
-        f"👋 **नमस्ते, {user.first_name}!**\n\n"
-        "मैं एक ऑटो-फ़िल्टर बॉट हूँ। आप जो भी फ़ाइल (मूवी/फ़ाइल) खोजना चाहते हैं उसका नाम भेजें, "
-        "और मैं इंडेक्स किए गए चैनलों से परिणाम दिखाऊंगा।"
-    )
+# --- /start Command Handler (हटा दिया गया) ---
+# NOTE: /start command handler को bot.py में रखा गया है ताकि बटन दिखाई दें। 
+#       यहाँ से इसे हटाने पर कॉन्फ़्लिक्ट खत्म हो जाएगा।
+#
+# @Client.on_message(filters.command("start") & filters.private)
+# async def start_handler(client: Client, message: Message):
+#     """स्टार्ट कमांड का जवाब देता है।"""
+#     ... (यह कोड हटाया गया है)
 
-# --- 2. /total_files Command Handler (Admin) ---
+
+# --- 1. /total_files Command Handler (Admin) ---
 @Client.on_message(filters.command("total_files") & filters.private)
 async def total_files_handler(client: Client, message: Message):
     """एडमिन को डेटाबेस में इंडेक्स की गई फ़ाइलों की कुल संख्या दिखाता है।"""
@@ -45,7 +44,7 @@ async def total_files_handler(client: Client, message: Message):
         await message.reply_text(f"❌ सांख्यिकी प्राप्त करने में त्रुटि आई: {e}")
 
 
-# --- 3. /filters Command Handler (General/Admin) ---
+# --- 2. /filters Command Handler (General/Admin) ---
 @Client.on_message(filters.command("filters") & filters.private)
 async def filters_handler(client: Client, message: Message):
     """उपलब्ध फ़िल्टरिंग विकल्प (जैसे Quality, Year) दिखाता है।"""
