@@ -47,6 +47,11 @@ async def add_group_to_db(group_id, group_name, added_by_user_id):
 @app.on_message(filters.command("start") & filters.private)
 async def start_command(client: Client, message: Message):
     """स्टार्ट कमांड का जवाब देता है और बटन दिखाता है।"""
+    
+    # 🚨 DEBUGGING LOG: यह लाइन हमें बताएगी कि संदेश प्राप्त हुआ है या नहीं।
+    user_name = message.from_user.first_name if message.from_user else "Unknown"
+    LOGGER.info(f"'/start' command received from user: {message.from_user.id} ({user_name})")
+    
     bot_info = await client.get_me()
     bot_username = bot_info.username
     
