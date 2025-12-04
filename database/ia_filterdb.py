@@ -1,8 +1,8 @@
-# database/ia_filterdb.py (Final Fix for Umongo 3.x)
+# database/ia_filterdb.py (Reverted to Umongo 2.x compatible syntax)
 import re
 from motor.motor_asyncio import AsyncIOMotorClient
-# Correct import structure: set_motor_backend hata diya gaya hai
-from umongo import Document, fields 
+# umongo 2.x ke liye set_motor_backend zaroori hai aur root se import hota hai
+from umongo import Document, fields, set_motor_backend 
 from umongo.frameworks import MotorAsyncIOInstance
 from pyrogram.file_id import FileId 
 from config import Config 
@@ -11,8 +11,11 @@ from config import Config
 # MongoDB Connection
 client = AsyncIOMotorClient(Config.DB_URI)
 db = client["IndexingBotDB"]
-# MotorAsyncIOInstance is enough to set the motor backend.
-instance = MotorAsyncIOInstance(db) 
+# umongo instance ko motor/asyncIO backend se initialize karna
+instance = MotorAsyncIOInstance(db)
+
+# FIX: Umongo 2.x mein yeh call zaroori hai
+set_motor_backend(instance)
 
 # --- Document Schema Definition using umongo ---
 
@@ -23,18 +26,18 @@ class Media(Document):
     """
     # 1. Primary Fields
     file_id = fields.StrField(required=True)
-    file_unique_id = fields.StrField(required=True, unique=True)
-    file_ref = fields.BinaryField(required=True)
+    file_unique_id = fields.StrField(required=True, unique=True) # Duplicate check ke liye
+    file_ref = fields.BinaryField(required=True) # Permanent File Reference (bytes format)
     
     # 2. Metadata Fields
     file_name = fields.StrField(required=True)
     file_size = fields.IntField(required=True)
-    file_type = fields.StrField(required=True)
+    file_type = fields.StrField(required=True) # 'video', 'audio', 'document'
     
-    # 3. FIX: 'default' removed from StringField to fix AttributeError
-    caption = fields.StrField() 
+    # FIX: default="" parameter wapas laaya gaya hai (Umongo 2.x ke liye sahi)
+    caption = fields.StrField(default="") 
     
-    # 4. Search Index Field
+    # 3. Search Index Field
     cleaned_name = fields.StrField(required=True)
     
     class Meta:
@@ -53,6 +56,7 @@ def get_file_details(media):
 
     try:
         file_id_obj = FileId.decode(media.file_id)
+        # file_ref bytes format mein milega
         file_ref = file_id_obj.file_reference
     except Exception:
         file_ref = None
@@ -80,8 +84,10 @@ async def save_file(media, caption):
     file_name = media.file_name if media.file_name else f"file_{file_unique_id}"
     file_size = media.file_size
 
+    # --- Naam Saaf Karna (Clean) ---
     cleaned_name = re.sub(r"(_|\-|\.|\+)", " ", file_name).strip().lower()
     
+    # umongo Document banana
     file_doc = Media(
         file_id=file_id,
         file_unique_id=file_unique_id,
@@ -89,11 +95,12 @@ async def save_file(media, caption):
         file_name=file_name,
         file_size=file_size,
         file_type=file_type,
-        caption=caption, # caption ko khaali string ("") accept kar dega
+        caption=caption,
         cleaned_name=cleaned_name,
     )
 
     try:
+        # Document ko save karna
         await file_doc.commit()
         return 'success'
     except Exception as e:
@@ -122,8 +129,10 @@ async def get_search_results(query: str, file_type: str = None, max_results: int
     
     query_filter = {}
     
+    # Regex pattern: Case-Insensitive search
     regex_pattern = re.compile(f".*{re.escape(search_query)}.*", re.IGNORECASE)
     
+    # Cleaned_name field par search karna
     search_fields = [{"cleaned_name": regex_pattern}]
     
     if getattr(Config, 'USE_CAPTION_FILTER', False):
@@ -131,10 +140,13 @@ async def get_search_results(query: str, file_type: str = None, max_results: int
          
     query_filter["$or"] = search_fields
 
+    # Optional: File Type Filter
     if file_type:
         query_filter["file_type"] = file_type
 
+    # umongo Document class use karke find karna
     cursor = Media.find(query_filter).skip(offset).limit(max_results)
+    
     results = await cursor.to_list(length=max_results)
     
     return results
