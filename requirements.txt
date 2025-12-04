@@ -2,4 +2,5 @@ pyrogram>=2.0.106
 tgcrypto
 motor
 dnspython
-umongo
+umongo>=3.1.0
+marshmallow>=3.0.0
