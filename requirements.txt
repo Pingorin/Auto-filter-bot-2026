@@ -1,6 +1,4 @@
-pyrogram[fast]>=2.0.0
+pyrogram
 tgcrypto
 motor
 dnspython
-dataclasses
-asyncio
