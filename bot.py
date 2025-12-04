@@ -3,16 +3,14 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from config import Config
 
 # --- Database Setup (MongoDB) ---
-# Initialize DB connection only once here
 try:
     mongo_client = AsyncIOMotorClient(Config.DB_URI)
     db = mongo_client["MyTelegramBotDB"]
-    # This globally available collection variable will be used in the handlers
+    # Globally available collection variable
     groups_collection = db["groups"]
     print("MongoDB Client Initialized.")
 except Exception as e:
     print(f"Error initializing MongoDB Client: {e}")
-    # Allow bot to continue running even if DB fails initially
     pass 
 
 
