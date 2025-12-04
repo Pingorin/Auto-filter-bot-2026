@@ -1,5 +1,7 @@
-class script:
-    START_TXT = """<b>👋 Hello {0}!</b>
+# {0} = User Mention
+# {1} = Status (Free/Premium)
+# {2} = User ID
+START_TXT = """<b>👋 Hello {0}!</b>
 
 I am an advanced group management bot.
 
@@ -8,6 +10,6 @@ I am an advanced group management bot.
 
 Click the buttons below to continue."""
 
-# Temp variable storage
+# Temp variable storage for U_NAME
 class temp:
     U_NAME = None
