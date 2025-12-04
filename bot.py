@@ -1,20 +1,9 @@
 from pyrogram import Client
-from motor.motor_asyncio import AsyncIOMotorClient 
 from config import Config
+# Import mongo_client from the new file just to close it safely
+from database import mongo_client 
 
-# --- Database Setup (MongoDB) ---
-try:
-    mongo_client = AsyncIOMotorClient(Config.DB_URI)
-    db = mongo_client["MyTelegramBotDB"]
-    # Globally available collection variable
-    groups_collection = db["groups"]
-    print("MongoDB Client Initialized.")
-except Exception as e:
-    print(f"Error initializing MongoDB Client: {e}")
-    pass 
-
-
-# --- Bot Client Setup with PLUGINS ---
+# --- Bot Client Setup ---
 app = Client(
     "my_bot",
     api_id=Config.API_ID,
@@ -24,16 +13,23 @@ app = Client(
 )
 
 # --- Bot Run ---
-print("Bot Started with Plugins...")
-
-try:
-    app.run()
-except KeyboardInterrupt:
-    print("Bot is shutting down...")
-    app.stop()
-    # Close MongoDB connection safely
+if __name__ == "__main__":
+    print("Bot Started with Plugins...")
     try:
-        mongo_client.close() 
-    except NameError:
-        pass 
-    print("Bot Stopped and DB connection closed.")
+        app.run()
+    except KeyboardInterrupt:
+        print("Bot is shutting down...")
+    finally:
+        # Stop the app if running
+        try:
+            if app.is_connected:
+                app.stop()
+        except:
+            pass
+            
+        # Close DB Connection
+        try:
+            mongo_client.close()
+            print("MongoDB connection closed.")
+        except Exception as e:
+            print(f"Error closing DB: {e}")
