@@ -1,5 +1,5 @@
 from pyrogram import Client
-from motor.motor_asyncio import AsyncIOMotorClient # Must import here for init
+from motor.motor_asyncio import AsyncIOMotorClient 
 from config import Config
 
 # --- Database Setup (MongoDB) ---
@@ -11,9 +11,9 @@ try:
     groups_collection = db["groups"]
     print("MongoDB Client Initialized.")
 except Exception as e:
-    # If DB URI is invalid or dependencies failed to load, print the error and exit
     print(f"Error initializing MongoDB Client: {e}")
-    exit(1)
+    # Allow bot to continue running even if DB fails initially
+    pass 
 
 
 # --- Bot Client Setup with PLUGINS ---
@@ -33,6 +33,9 @@ try:
 except KeyboardInterrupt:
     print("Bot is shutting down...")
     app.stop()
-    # Close MongoDB connection
-    mongo_client.close() 
+    # Close MongoDB connection safely
+    try:
+        mongo_client.close() 
+    except NameError:
+        pass 
     print("Bot Stopped and DB connection closed.")
