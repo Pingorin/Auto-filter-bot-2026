@@ -1,7 +1,8 @@
 from pyrogram import Client, filters, enums
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, Message, CallbackQuery
-from script import script, temp # Importing script and temp
-# IMPORTANT: We import the initialized collection directly from bot.py
+# CORRECTED IMPORT: Import START_TXT and temp directly
+from script import START_TXT, temp 
+# Import the initialized collection from bot.py
 from bot import groups_collection 
 
 # Mock function for status (replace with your actual DB logic)
@@ -9,7 +10,6 @@ def get_status():
     return "Free"
 
 # --- Helper Function: Save Group to DB ---
-# This function now uses the globally available groups_collection
 async def add_group_to_db(group_id, group_name, added_by_user_id):
     await groups_collection.update_one(
         {"_id": group_id},
@@ -49,7 +49,8 @@ async def start_command(client: Client, message: Message):
         reply_markup = InlineKeyboardMarkup(buttons)
         
         await message.reply_text(
-            script.START_TXT.format(message.from_user.mention, get_status(), message.from_user.id),
+            # CORRECT USAGE
+            START_TXT.format(message.from_user.mention, get_status(), message.from_user.id),
             reply_markup=reply_markup,
             parse_mode=enums.ParseMode.HTML
         )
