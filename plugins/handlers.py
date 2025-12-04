@@ -1,11 +1,10 @@
 from pyrogram import Client, filters, enums
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, Message, CallbackQuery
-# CORRECTED IMPORT: Import START_TXT and temp directly
+# FIXED IMPORT: Import START_TXT and temp directly from the module
 from script import START_TXT, temp 
-# Import the initialized collection from bot.py
 from bot import groups_collection 
 
-# Mock function for status (replace with your actual DB logic)
+# Mock function for status 
 def get_status():
     return "Free"
 
@@ -27,12 +26,10 @@ async def add_group_to_db(group_id, group_name, added_by_user_id):
 # 1. /start Command Handler (Using @Client.on_message)
 @Client.on_message(filters.command("start") & filters.incoming)
 async def start_command(client: Client, message: Message):
-    # Fetch Bot Username if not already set
     if not temp.U_NAME:
         bot_info = await client.get_me()
         temp.U_NAME = bot_info.username
 
-    # Case 1: Normal /start (No arguments)
     if len(message.command) != 2:
         buttons = [
             [
@@ -49,14 +46,12 @@ async def start_command(client: Client, message: Message):
         reply_markup = InlineKeyboardMarkup(buttons)
         
         await message.reply_text(
-            # CORRECT USAGE
             START_TXT.format(message.from_user.mention, get_status(), message.from_user.id),
             reply_markup=reply_markup,
             parse_mode=enums.ParseMode.HTML
         )
         return
 
-    # Case 2: Deep Linking (argument provided)
     argument = message.command[1]
     await message.reply_text(f"Bot started with argument: {argument}")
 
@@ -84,5 +79,4 @@ async def on_new_chat_members(client: Client, message: Message):
             group_id = message.chat.id
             group_name = message.chat.title
             added_by = message.from_user.id if message.from_user else None
-            # Database mein save karein
             await add_group_to_db(group_id, group_name, added_by)
