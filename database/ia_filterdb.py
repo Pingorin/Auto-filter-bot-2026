@@ -1,7 +1,7 @@
-# database/ia_filterdb.py (Reverted to Umongo 2.x compatible syntax)
+# database/ia_filterdb.py (Umongo 2.1.2 Compatible Code)
 import re
 from motor.motor_asyncio import AsyncIOMotorClient
-# umongo 2.x ke liye set_motor_backend zaroori hai aur root se import hota hai
+# umongo 2.x ke liye set_motor_backend ko import karna zaroori hai
 from umongo import Document, fields, set_motor_backend 
 from umongo.frameworks import MotorAsyncIOInstance
 from pyrogram.file_id import FileId 
@@ -14,7 +14,7 @@ db = client["IndexingBotDB"]
 # umongo instance ko motor/asyncIO backend se initialize karna
 instance = MotorAsyncIOInstance(db)
 
-# FIX: Umongo 2.x mein yeh call zaroori hai
+# ZAROORI: Umongo 2.x mein yeh call mandatory hai
 set_motor_backend(instance)
 
 # --- Document Schema Definition using umongo ---
@@ -34,7 +34,7 @@ class Media(Document):
     file_size = fields.IntField(required=True)
     file_type = fields.StrField(required=True) # 'video', 'audio', 'document'
     
-    # FIX: default="" parameter wapas laaya gaya hai (Umongo 2.x ke liye sahi)
+    # Umongo 2.x ke liye default parameter zaroori hai
     caption = fields.StrField(default="") 
     
     # 3. Search Index Field
@@ -56,7 +56,6 @@ def get_file_details(media):
 
     try:
         file_id_obj = FileId.decode(media.file_id)
-        # file_ref bytes format mein milega
         file_ref = file_id_obj.file_reference
     except Exception:
         file_ref = None
