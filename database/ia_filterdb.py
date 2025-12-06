@@ -12,20 +12,27 @@ class MediaDB:
         self.col = self.db.files
 
     async def ensure_indexes(self):
-        # Search fast karne ke liye Indexing
+        # Search fast karne ke liye
         await self.col.create_index([("file_name", "text")])
+        # Duplicate rokne ke liye unique index
+        await self.col.create_index("file_id", unique=True)
 
     async def save_file(self, media):
-        """File ko database mein save karta hai"""
+        """
+        Returns: 
+        'saved': Agar nayi file save hui.
+        'duplicate': Agar file pehle se thi.
+        'error': Agar koi error aaya.
+        """
         try:
             file_id = media.file_id
             file_name = media.file_name
             file_size = media.file_size
             
-            # Check agar file pehle se hai
+            # Check duplicate by unique ID or File ID
             file = await self.col.find_one({'file_id': file_id})
             if file:
-                return False
+                return 'duplicate'
             
             # Nayi file save karein
             await self.col.insert_one({
@@ -35,22 +42,17 @@ class MediaDB:
                 'caption': media.caption.html if media.caption else None,
                 'file_type': media.mime_type
             })
-            return True
+            return 'saved'
+            
         except Exception as e:
             print(f"Error saving file: {e}")
-            return False
+            return 'error'
 
     async def get_search_results(self, query):
-        """Database se milti-julti files dhoondhta hai"""
         regex = re.compile(query, re.IGNORECASE)
-        filter = {"file_name": regex}
-        
-        # Files dhoondho aur limit lagao (Max 10 for now)
-        cursor = self.col.find(filter)
-        cursor.sort('$natural', -1) # Latest files pehle
-        
+        cursor = self.col.find({"file_name": regex})
+        cursor.sort('$natural', -1)
         files = await cursor.to_list(length=10)
         return files
 
-# Database Object initialize karein
 Media = MediaDB(DATABASE_URI, "MyBotDB")
