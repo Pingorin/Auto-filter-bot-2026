@@ -4,7 +4,7 @@ from utils import temp  # Username lene ke liye
 
 # 1. Yahan apni photo ka direct link dalein
 # (Aap Telegraph graph.org ya kisi bhi direct image link ka use kar sakte hain)
-START_IMG = "https://graph.org/file/9d2c2084627d70404764b.jpg"
+START_IMG = "https://graph.org/file/4d61886e61dfa37a25945.jpg"
 
 @Client.on_message(filters.command("start") & filters.private)
 async def start(client, message):
